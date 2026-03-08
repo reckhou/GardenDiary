@@ -1,0 +1,44 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Run tests
+        run: dotnet test --configuration Release --verbosity normal
+
+      - name: Publish self-contained win-x64
+        run: >
+          dotnet publish GardenDiary/GardenDiary.csproj
+          --configuration Release
+          --runtime win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          --output ./publish
+
+      - name: Zip artifact
+        run: Compress-Archive -Path ./publish/* -DestinationPath ./GardenDiary-${{ github.ref_name }}-win-x64.zip
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Garden Diary ${{ github.ref_name }}
+          generate_release_notes: true
+          files: GardenDiary-${{ github.ref_name }}-win-x64.zip
