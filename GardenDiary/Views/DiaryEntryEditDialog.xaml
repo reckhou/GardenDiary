@@ -1,0 +1,48 @@
+<Window x:Class="GardenDiary.Views.DiaryEntryEditDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Diary Entry" Height="400" Width="420"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Date -->
+        <Label Grid.Row="0" Grid.Column="0" Content="Date:" VerticalAlignment="Center"/>
+        <DatePicker Grid.Row="0" Grid.Column="1" x:Name="DpDate" Margin="0,4"/>
+
+        <!-- Activities -->
+        <Label Grid.Row="1" Grid.Column="0" Content="Activities:" VerticalAlignment="Top" Margin="0,10,0,0"/>
+        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,10,0,0">
+            <CheckBox x:Name="ChkPlanting"    Content="Planting"    Margin="0,3"/>
+            <CheckBox x:Name="ChkWatering"    Content="Watering"    Margin="0,3"/>
+            <CheckBox x:Name="ChkFertilizing" Content="Fertilizing" Margin="0,3"/>
+            <CheckBox x:Name="ChkWeeding"     Content="Weeding"     Margin="0,3"/>
+            <CheckBox x:Name="ChkMulching"    Content="Mulching"    Margin="0,3"/>
+            <CheckBox x:Name="ChkPruning"     Content="Pruning"     Margin="0,3"/>
+        </StackPanel>
+
+        <!-- Notes -->
+        <Label Grid.Row="2" Grid.Column="0" Content="Notes:" VerticalAlignment="Top" Margin="0,10,0,0"/>
+        <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtNotes"
+                 Margin="0,10,0,0" Padding="4"
+                 AcceptsReturn="True" TextWrapping="Wrap"
+                 VerticalScrollBarVisibility="Auto"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="OK" Width="80" Margin="0,0,8,0" Click="OkClick" IsDefault="True"/>
+            <Button Content="Cancel" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

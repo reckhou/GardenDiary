@@ -1,0 +1,44 @@
+<Window x:Class="GardenDiary.Views.BackupSettingsDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Backup Settings" Height="190" Width="480"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Margin="0,0,0,12"
+                   Text="Backups are saved as JSON files in the chosen folder."
+                   Foreground="#555" TextWrapping="Wrap"/>
+
+        <Label Grid.Row="1" Content="Backup Folder:" Margin="0,0,0,4"/>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" x:Name="TxtPath" IsReadOnly="True"
+                     Padding="4,3" VerticalContentAlignment="Center"
+                     Background="#F8F8F8"/>
+            <Button Grid.Column="1" Content="Browse…" Width="72"
+                    Margin="6,0,0,0" Click="BrowseClick"/>
+        </Grid>
+
+        <TextBlock Grid.Row="3" x:Name="TxtLastBackup" Margin="0,10,0,0"
+                   Foreground="#666" FontSize="11"/>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="OK" Width="80" Margin="0,0,8,0"
+                    Click="OkClick" IsDefault="True"/>
+            <Button Content="Cancel" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>
