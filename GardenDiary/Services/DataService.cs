@@ -11,10 +11,12 @@ public class DataService
 
     private static readonly JsonSerializerOptions _options = new() { WriteIndented = true };
 
-    public DataService()
+    public DataService() : this(null) { }
+
+    public DataService(string? customDir)
     {
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        AppDataDir = Path.Combine(appData, "GardenDiary");
+        AppDataDir = customDir
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GardenDiary");
         Directory.CreateDirectory(AppDataDir);
         DataFilePath = Path.Combine(AppDataDir, "data.json");
     }
