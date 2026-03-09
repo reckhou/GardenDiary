@@ -7,4 +7,5 @@ public class Plant
     public string LatinName { get; set; } = "";
     public string Variety { get; set; } = "";
     public List<DiaryEntry> DiaryEntries { get; set; } = new();
+    public double DefaultRadius { get; set; } = 30;
 }

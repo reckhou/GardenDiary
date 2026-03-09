@@ -8,6 +8,7 @@ public class DataService
 {
     public string AppDataDir { get; }
     public string DataFilePath { get; }
+    public string AreasFilePath { get; }
 
     private static readonly JsonSerializerOptions _options = new() { WriteIndented = true };
 
@@ -18,7 +19,8 @@ public class DataService
         AppDataDir = customDir
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GardenDiary");
         Directory.CreateDirectory(AppDataDir);
-        DataFilePath = Path.Combine(AppDataDir, "data.json");
+        DataFilePath  = Path.Combine(AppDataDir, "data.json");
+        AreasFilePath = Path.Combine(AppDataDir, "areas.json");
     }
 
     public List<Plant> LoadPlants()
@@ -32,5 +34,18 @@ public class DataService
     {
         var json = JsonSerializer.Serialize(plants.ToList(), _options);
         File.WriteAllText(DataFilePath, json);
+    }
+
+    public List<GardenArea> LoadAreas()
+    {
+        if (!File.Exists(AreasFilePath)) return new List<GardenArea>();
+        var json = File.ReadAllText(AreasFilePath);
+        return JsonSerializer.Deserialize<List<GardenArea>>(json, _options) ?? new List<GardenArea>();
+    }
+
+    public void SaveAreas(IEnumerable<GardenArea> areas)
+    {
+        var json = JsonSerializer.Serialize(areas.ToList(), _options);
+        File.WriteAllText(AreasFilePath, json);
     }
 }

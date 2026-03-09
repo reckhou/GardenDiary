@@ -256,6 +256,161 @@
                 </Grid>
             </TabItem>
 
+            <!-- ══════════════════════════════════════════════════
+                 Tab 3: Garden Planner
+            ══════════════════════════════════════════════════ -->
+            <TabItem Header="  Garden Planner  ">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="210" MinWidth="160"/>
+                        <ColumnDefinition Width="5"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: Areas list -->
+                    <DockPanel Grid.Column="0" Margin="10">
+
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Garden Areas"
+                                           FontSize="15" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <Button Grid.Column="1" Content="+ Add"
+                                        Command="{Binding AddAreaCommand}" Padding="8,3"/>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
+                                    HorizontalAlignment="Right" Margin="0,6,0,0">
+                            <Button Content="Edit"   Command="{Binding EditAreaCommand}"
+                                    Width="68" Margin="0,0,6,0"/>
+                            <Button Content="Delete" Command="{Binding DeleteAreaCommand}" Width="68"/>
+                        </StackPanel>
+
+                        <ListBox ItemsSource="{Binding Areas}"
+                                 SelectedItem="{Binding SelectedArea}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="2,4">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold" FontSize="13"/>
+                                        <TextBlock FontSize="11" Foreground="#888">
+                                            <TextBlock.Text>
+                                                <MultiBinding StringFormat="{}{0} × {1} units">
+                                                    <Binding Path="Width"/>
+                                                    <Binding Path="Height"/>
+                                                </MultiBinding>
+                                            </TextBlock.Text>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </DockPanel>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Width="5"
+                                  HorizontalAlignment="Stretch" Background="#DDD"/>
+
+                    <!-- RIGHT: Canvas panel -->
+                    <DockPanel Grid.Column="2" Margin="10">
+
+                        <!-- Toolbar: plant picker + radius -->
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,6" Padding="4,4">
+                            <WrapPanel>
+                                <TextBlock Text="Place plant:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                <ComboBox ItemsSource="{Binding Plants}"
+                                          SelectedItem="{Binding PlantToPlace}"
+                                          DisplayMemberPath="CommonName"
+                                          Width="155" Margin="0,0,10,0"/>
+                                <TextBlock Text="Default radius:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <TextBox Text="{Binding DefaultPlacementRadius, UpdateSourceTrigger=LostFocus}"
+                                         Width="46" Margin="0,0,10,0" Padding="3,2" VerticalContentAlignment="Center"/>
+                                <TextBlock Text="— click canvas to place, drag circle to move"
+                                           VerticalAlignment="Center" Foreground="#999" FontStyle="Italic" FontSize="11"/>
+                            </WrapPanel>
+                        </Border>
+
+                        <!-- Selection bar (bottom) -->
+                        <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
+                                Background="#F5F5F5" Padding="8,5">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                           Text="{Binding SelectedPlacementLabel}"
+                                           VerticalAlignment="Center" Foreground="#555"/>
+
+                                <TextBlock Grid.Column="1" Text="Radius:"
+                                           VerticalAlignment="Center" Margin="12,0,4,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <TextBox Grid.Column="2" Width="50" Padding="3,2"
+                                         VerticalContentAlignment="Center"
+                                         Text="{Binding SelectedPlacementRadius, UpdateSourceTrigger=LostFocus}">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+
+                                <Button Grid.Column="3" Content="Remove"
+                                        Command="{Binding DeletePlacementCommand}"
+                                        Width="72" Margin="8,0,0,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+                        </Border>
+
+                        <!-- Canvas viewport -->
+                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Background="#BDBDBD"
+                                      Padding="20">
+                            <Canvas x:Name="GardenCanvas"
+                                    Background="#E8F5E9"
+                                    IsVisibleChanged="GardenCanvas_IsVisibleChanged"
+                                    MouseLeftButtonDown="GardenCanvas_MouseLeftButtonDown"
+                                    Cursor="Crosshair"/>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
         </TabControl>
     </DockPanel>
 </Window>

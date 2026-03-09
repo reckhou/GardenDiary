@@ -17,11 +17,17 @@ public class MainViewModel : INotifyPropertyChanged
     private string _statusText = "Ready";
     private DateTime? _selectedCalendarDate;
 
+    // Garden planner
+    private GardenArea? _selectedArea;
+    private Plant? _plantToPlace;
+    private PlantPlacement? _selectedPlacement;
+
     public ObservableCollection<Plant> Plants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
+    public ObservableCollection<GardenArea> Areas { get; } = new();
 
-    // ── Plants & Diary properties ─────────────────────────────────────────────
+    // ── Plants & Diary ────────────────────────────────────────────────────────
 
     public Plant? SelectedPlant
     {
@@ -50,7 +56,7 @@ public class MainViewModel : INotifyPropertyChanged
         private set { _statusText = value; OnPropertyChanged(); }
     }
 
-    // ── Calendar properties ───────────────────────────────────────────────────
+    // ── Calendar ──────────────────────────────────────────────────────────────
 
     public DateTime? SelectedCalendarDate
     {
@@ -71,6 +77,87 @@ public class MainViewModel : INotifyPropertyChanged
 
     public bool NoDayTasks => DayTasks.Count == 0;
 
+    // ── Garden Planner ────────────────────────────────────────────────────────
+
+    public GardenArea? SelectedArea
+    {
+        get => _selectedArea;
+        set
+        {
+            _selectedArea = value;
+            SelectedPlacement = null;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedAreaTitle));
+            CanvasRefreshRequested?.Invoke();
+        }
+    }
+
+    public string SelectedAreaTitle => _selectedArea?.Name ?? "Select an area";
+
+    public Plant? PlantToPlace
+    {
+        get => _plantToPlace;
+        set
+        {
+            _plantToPlace = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DefaultPlacementRadius));
+        }
+    }
+
+    public double DefaultPlacementRadius
+    {
+        get => _plantToPlace?.DefaultRadius ?? 30;
+        set
+        {
+            if (_plantToPlace == null || value <= 0) return;
+            _plantToPlace.DefaultRadius = value;
+            OnPropertyChanged();
+            Save();
+        }
+    }
+
+    public PlantPlacement? SelectedPlacement
+    {
+        get => _selectedPlacement;
+        set
+        {
+            _selectedPlacement = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedPlacementRadius));
+            OnPropertyChanged(nameof(SelectedPlacementLabel));
+            OnPropertyChanged(nameof(HasSelectedPlacement));
+        }
+    }
+
+    public double SelectedPlacementRadius
+    {
+        get => _selectedPlacement?.Radius ?? 30;
+        set
+        {
+            if (_selectedPlacement == null || value <= 0) return;
+            _selectedPlacement.Radius = value;
+            OnPropertyChanged();
+            SaveAreas();
+            CanvasRefreshRequested?.Invoke();
+        }
+    }
+
+    public string SelectedPlacementLabel
+    {
+        get
+        {
+            if (_selectedPlacement == null) return "Click a plant on the canvas to select it";
+            var plant = Plants.FirstOrDefault(p => p.Id == _selectedPlacement.PlantId);
+            return plant is null ? "Unknown plant" : $"{plant.CommonName}  —  drag to move";
+        }
+    }
+
+    public bool HasSelectedPlacement => _selectedPlacement != null;
+
+    // Raised when the canvas must be redrawn
+    public event Action? CanvasRefreshRequested;
+
     // ── Commands ──────────────────────────────────────────────────────────────
 
     public RelayCommand AddPlantCommand { get; }
@@ -82,22 +169,31 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BackupNowCommand { get; }
     public RelayCommand ConfigureBackupCommand { get; }
     public RelayCommand CalendarAddEntryCommand { get; }
+    public RelayCommand AddAreaCommand { get; }
+    public RelayCommand EditAreaCommand { get; }
+    public RelayCommand DeleteAreaCommand { get; }
+    public RelayCommand DeletePlacementCommand { get; }
 
     public MainViewModel()
     {
         _backupService = new BackupService(_dataService.AppDataDir, _dataService.DataFilePath);
 
-        AddPlantCommand        = new RelayCommand(_ => AddPlant());
-        EditPlantCommand       = new RelayCommand(_ => EditPlant(),  _ => SelectedPlant != null);
-        DeletePlantCommand     = new RelayCommand(_ => DeletePlant(), _ => SelectedPlant != null);
-        AddEntryCommand        = new RelayCommand(_ => AddEntry(),   _ => SelectedPlant != null);
-        EditEntryCommand       = new RelayCommand(_ => EditEntry(),  _ => SelectedEntry != null);
-        DeleteEntryCommand     = new RelayCommand(_ => DeleteEntry(), _ => SelectedEntry != null);
-        BackupNowCommand       = new RelayCommand(_ => BackupNow());
-        ConfigureBackupCommand = new RelayCommand(_ => ConfigureBackup());
+        AddPlantCommand         = new RelayCommand(_ => AddPlant());
+        EditPlantCommand        = new RelayCommand(_ => EditPlant(),   _ => SelectedPlant != null);
+        DeletePlantCommand      = new RelayCommand(_ => DeletePlant(), _ => SelectedPlant != null);
+        AddEntryCommand         = new RelayCommand(_ => AddEntry(),    _ => SelectedPlant != null);
+        EditEntryCommand        = new RelayCommand(_ => EditEntry(),   _ => SelectedEntry != null);
+        DeleteEntryCommand      = new RelayCommand(_ => DeleteEntry(), _ => SelectedEntry != null);
+        BackupNowCommand        = new RelayCommand(_ => BackupNow());
+        ConfigureBackupCommand  = new RelayCommand(_ => ConfigureBackup());
         CalendarAddEntryCommand = new RelayCommand(_ => CalendarAddEntry(), _ => SelectedCalendarDate.HasValue);
+        AddAreaCommand          = new RelayCommand(_ => AddArea());
+        EditAreaCommand         = new RelayCommand(_ => EditArea(),    _ => SelectedArea != null);
+        DeleteAreaCommand       = new RelayCommand(_ => DeleteArea(),  _ => SelectedArea != null);
+        DeletePlacementCommand  = new RelayCommand(_ => DeletePlacement(), _ => SelectedPlacement != null);
 
         LoadPlants();
+        LoadAreas();
     }
 
     // ── Auto-backup ───────────────────────────────────────────────────────────
@@ -123,6 +219,13 @@ public class MainViewModel : INotifyPropertyChanged
         Plants.Clear();
         foreach (var p in _dataService.LoadPlants())
             Plants.Add(p);
+    }
+
+    private void LoadAreas()
+    {
+        Areas.Clear();
+        foreach (var a in _dataService.LoadAreas())
+            Areas.Add(a);
     }
 
     private void LoadEntries()
@@ -156,7 +259,7 @@ public class MainViewModel : INotifyPropertyChanged
                 .Where(p => p.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
                 .Select(p => new PlantSummary
                 {
-                    Name = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
+                    Name      = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
                     LatinName = p.LatinName
                 })
                 .ToList();
@@ -177,8 +280,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void Save()
     {
         _dataService.SavePlants(Plants);
-        LoadDayTasks(); // keep calendar in sync after any data change
+        LoadDayTasks();
     }
+
+    public void SaveAreas() => _dataService.SaveAreas(Areas);
 
     // ── Plant CRUD ────────────────────────────────────────────────────────────
 
@@ -198,11 +303,12 @@ public class MainViewModel : INotifyPropertyChanged
         if (SelectedPlant == null) return;
         var copy = new Plant
         {
-            Id = SelectedPlant.Id,
-            CommonName = SelectedPlant.CommonName,
-            LatinName = SelectedPlant.LatinName,
-            Variety = SelectedPlant.Variety,
-            DiaryEntries = SelectedPlant.DiaryEntries
+            Id            = SelectedPlant.Id,
+            CommonName    = SelectedPlant.CommonName,
+            LatinName     = SelectedPlant.LatinName,
+            Variety       = SelectedPlant.Variety,
+            DefaultRadius = SelectedPlant.DefaultRadius,
+            DiaryEntries  = SelectedPlant.DiaryEntries
         };
         var dialog = new PlantEditDialog(copy) { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() == true)
@@ -218,12 +324,20 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (SelectedPlant == null) return;
         var result = System.Windows.MessageBox.Show(
-            $"Delete '{SelectedPlant.CommonName}' and all its diary entries?",
+            $"Delete '{SelectedPlant.CommonName}' and all its diary entries and placements?",
             "Confirm Delete", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
         if (result != System.Windows.MessageBoxResult.Yes) return;
+
+        // Remove placements from all areas
+        var plantId = SelectedPlant.Id;
+        foreach (var area in Areas)
+            area.PlantPlacements.RemoveAll(p => p.PlantId == plantId);
+        SaveAreas();
+
         Plants.Remove(SelectedPlant);
         SelectedPlant = null;
         Save();
+        CanvasRefreshRequested?.Invoke();
     }
 
     // ── Diary entry CRUD ──────────────────────────────────────────────────────
@@ -283,17 +397,14 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (!_selectedCalendarDate.HasValue) return;
 
-        var dialog = new CalendarEntryDialog(
-            _selectedCalendarDate.Value,
-            Plants.ToList())
-        { Owner = App.Current.MainWindow };
+        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList())
+            { Owner = App.Current.MainWindow };
 
         if (dialog.ShowDialog() != true) return;
 
-        var plant = dialog.SelectedPlant!;
+        var plant    = dialog.SelectedPlant!;
         var newEntry = dialog.Entry;
 
-        // Find existing entry for same plant + date and merge, or add new
         var existing = plant.DiaryEntries.FirstOrDefault(e => e.Date.Date == newEntry.Date.Date);
         if (existing != null)
         {
@@ -310,10 +421,78 @@ public class MainViewModel : INotifyPropertyChanged
             plant.DiaryEntries.Add(newEntry);
         }
 
-        // Refresh per-plant diary panel if this plant is currently selected
         if (SelectedPlant?.Id == plant.Id) LoadEntries();
-
         Save();
+    }
+
+    // ── Garden Planner ────────────────────────────────────────────────────────
+
+    private void AddArea()
+    {
+        var dialog = new GardenAreaEditDialog(new GardenArea()) { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() == true)
+        {
+            Areas.Add(dialog.Area);
+            SaveAreas();
+            SelectedArea = dialog.Area;
+        }
+    }
+
+    private void EditArea()
+    {
+        if (SelectedArea == null) return;
+        var copy = new GardenArea
+        {
+            Id              = SelectedArea.Id,
+            Name            = SelectedArea.Name,
+            Width           = SelectedArea.Width,
+            Height          = SelectedArea.Height,
+            PlantPlacements = SelectedArea.PlantPlacements
+        };
+        var dialog = new GardenAreaEditDialog(copy) { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() == true)
+        {
+            var idx = Areas.IndexOf(SelectedArea);
+            Areas[idx] = dialog.Area;
+            SaveAreas();
+            SelectedArea = Areas[idx];
+        }
+    }
+
+    private void DeleteArea()
+    {
+        if (SelectedArea == null) return;
+        var result = System.Windows.MessageBox.Show(
+            $"Delete area '{SelectedArea.Name}' and all its plant placements?",
+            "Confirm Delete", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+        Areas.Remove(SelectedArea);
+        SelectedArea = null;
+        SaveAreas();
+    }
+
+    private void DeletePlacement()
+    {
+        if (SelectedArea == null || SelectedPlacement == null) return;
+        SelectedArea.PlantPlacements.Remove(SelectedPlacement);
+        SelectedPlacement = null;
+        SaveAreas();
+        CanvasRefreshRequested?.Invoke();
+    }
+
+    public PlantPlacement? AddPlacement(double x, double y)
+    {
+        if (SelectedArea == null || PlantToPlace == null) return null;
+        var placement = new PlantPlacement
+        {
+            PlantId = PlantToPlace.Id,
+            X       = x,
+            Y       = y,
+            Radius  = DefaultPlacementRadius
+        };
+        SelectedArea.PlantPlacements.Add(placement);
+        SaveAreas();
+        return placement;
     }
 
     // ── Backup ────────────────────────────────────────────────────────────────
@@ -345,8 +524,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     private void ConfigureBackup()
     {
-        var dialog = new BackupSettingsDialog(_backupService.Settings)
-            { Owner = App.Current.MainWindow };
+        var dialog = new BackupSettingsDialog(_backupService.Settings) { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() == true)
         {
             _backupService.Settings.BackupFolderPath = dialog.SelectedPath;
