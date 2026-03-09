@@ -1,9 +1,11 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using GardenDiary.Models;
 using GardenDiary.Services;
 using GardenDiary.Views;
+using MessageBox = System.Windows.MessageBox;
 
 namespace GardenDiary.ViewModels;
 
@@ -11,21 +13,26 @@ public class MainViewModel : INotifyPropertyChanged
 {
     private readonly DataService _dataService = new();
     private readonly BackupService _backupService;
+    private readonly WeatherService _weatherService = new();
 
     private Plant? _selectedPlant;
     private DiaryEntry? _selectedEntry;
     private string _statusText = "Ready";
     private DateTime? _selectedCalendarDate;
+    private DayWeather? _dayWeather;
+    private bool _isLoadingWeather;
 
     // Garden planner
     private GardenArea? _selectedArea;
     private Plant? _plantToPlace;
+    private PlantOption? _selectedPlantOption;
     private PlantPlacement? _selectedPlacement;
 
     public ObservableCollection<Plant> Plants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
     public ObservableCollection<GardenArea> Areas { get; } = new();
+    public ObservableCollection<PlantOption> PlantOptions { get; } = new();
 
     // ── Plants & Diary ────────────────────────────────────────────────────────
 
@@ -68,6 +75,7 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(DayTasksTitle));
             OnPropertyChanged(nameof(NoDayTasks));
             LoadDayTasks();
+            _ = LoadWeatherAsync();
         }
     }
 
@@ -76,6 +84,60 @@ public class MainViewModel : INotifyPropertyChanged
         : "Select a day on the calendar";
 
     public bool NoDayTasks => DayTasks.Count == 0;
+
+    // ── Weather ───────────────────────────────────────────────────────────────
+
+    public DayWeather? DayWeather
+    {
+        get => _dayWeather;
+        private set
+        {
+            _dayWeather = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasWeather));
+            OnPropertyChanged(nameof(ShowWeatherNoLocation));
+            OnPropertyChanged(nameof(ShowWeatherLoading));
+            OnPropertyChanged(nameof(ShowWeatherError));
+            OnPropertyChanged(nameof(WeatherCondition));
+            OnPropertyChanged(nameof(WeatherTempRange));
+            OnPropertyChanged(nameof(WeatherWind));
+            OnPropertyChanged(nameof(WeatherPrecipitation));
+            OnPropertyChanged(nameof(WeatherSunrise));
+            OnPropertyChanged(nameof(WeatherSunset));
+            OnPropertyChanged(nameof(WeatherErrorText));
+        }
+    }
+
+    public bool IsLoadingWeather
+    {
+        get => _isLoadingWeather;
+        private set
+        {
+            _isLoadingWeather = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ShowWeatherLoading));
+            OnPropertyChanged(nameof(ShowWeatherError));
+        }
+    }
+
+    public bool HasHomeLocation => _backupService.Settings.HomeLatitude.HasValue;
+    public bool HasWeather      => _dayWeather?.IsAvailable == true;
+
+    // Visibility helpers (mutually exclusive states for the weather panel)
+    public bool ShowWeatherNoLocation => !HasHomeLocation;
+    public bool ShowWeatherLoading    => HasHomeLocation && IsLoadingWeather;
+    public bool ShowWeatherError      => HasHomeLocation && !IsLoadingWeather && !HasWeather
+                                         && _selectedCalendarDate.HasValue;
+
+    // Formatted weather strings
+    public string WeatherCondition    => HasWeather ? _dayWeather!.Condition : "";
+    public string WeatherTempRange    => HasWeather ? $"{_dayWeather!.TempMin:F0}–{_dayWeather.TempMax:F0}°C" : "";
+    public string WeatherWind         => HasWeather
+        ? $"{_dayWeather!.WindSpeed:F0} km/h {WeatherService.DegreesToCompass(_dayWeather.WindDirection)}" : "";
+    public string WeatherPrecipitation => HasWeather ? $"{_dayWeather!.Precipitation:F1} mm" : "";
+    public string WeatherSunrise      => HasWeather ? _dayWeather!.Sunrise.ToString("HH:mm") : "";
+    public string WeatherSunset       => HasWeather ? _dayWeather!.Sunset.ToString("HH:mm") : "";
+    public string WeatherErrorText    => ShowWeatherError ? (_dayWeather?.Error ?? "Weather data unavailable.") : "";
 
     // ── Garden Planner ────────────────────────────────────────────────────────
 
@@ -88,11 +150,27 @@ public class MainViewModel : INotifyPropertyChanged
             SelectedPlacement = null;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedAreaTitle));
+            OnPropertyChanged(nameof(HasSelectedArea));
+            _backupService.Settings.LastSelectedAreaId = value?.Id;
+            _backupService.SaveSettings();
             CanvasRefreshRequested?.Invoke();
         }
     }
 
     public string SelectedAreaTitle => _selectedArea?.Name ?? "Select an area";
+
+    public bool HasSelectedArea => _selectedArea != null;
+
+    public PlantOption? SelectedPlantOption
+    {
+        get => _selectedPlantOption;
+        set
+        {
+            _selectedPlantOption = value;
+            PlantToPlace = value?.Plant;
+            OnPropertyChanged();
+        }
+    }
 
     public Plant? PlantToPlace
     {
@@ -169,14 +247,17 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand BackupNowCommand { get; }
     public RelayCommand ConfigureBackupCommand { get; }
     public RelayCommand CalendarAddEntryCommand { get; }
+    public RelayCommand EditCalendarEntryCommand { get; }
     public RelayCommand AddAreaCommand { get; }
     public RelayCommand EditAreaCommand { get; }
     public RelayCommand DeleteAreaCommand { get; }
     public RelayCommand DeletePlacementCommand { get; }
+    public RelayCommand RestoreBackupCommand { get; }
+    public RelayCommand SetHomeLocationCommand { get; }
 
     public MainViewModel()
     {
-        _backupService = new BackupService(_dataService.AppDataDir, _dataService.DataFilePath);
+        _backupService = new BackupService(_dataService.AppDataDir, _dataService.DataFilePath, _dataService.AreasFilePath);
 
         AddPlantCommand         = new RelayCommand(_ => AddPlant());
         EditPlantCommand        = new RelayCommand(_ => EditPlant(),   _ => SelectedPlant != null);
@@ -186,11 +267,14 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteEntryCommand      = new RelayCommand(_ => DeleteEntry(), _ => SelectedEntry != null);
         BackupNowCommand        = new RelayCommand(_ => BackupNow());
         ConfigureBackupCommand  = new RelayCommand(_ => ConfigureBackup());
-        CalendarAddEntryCommand = new RelayCommand(_ => CalendarAddEntry(), _ => SelectedCalendarDate.HasValue);
+        CalendarAddEntryCommand  = new RelayCommand(_ => CalendarAddEntry(), _ => SelectedCalendarDate.HasValue);
+        EditCalendarEntryCommand = new RelayCommand(obj => { if (obj is Guid id) EditCalendarEntry(id); });
         AddAreaCommand          = new RelayCommand(_ => AddArea());
         EditAreaCommand         = new RelayCommand(_ => EditArea(),    _ => SelectedArea != null);
         DeleteAreaCommand       = new RelayCommand(_ => DeleteArea(),  _ => SelectedArea != null);
         DeletePlacementCommand  = new RelayCommand(_ => DeletePlacement(), _ => SelectedPlacement != null);
+        RestoreBackupCommand    = new RelayCommand(_ => RestoreBackup());
+        SetHomeLocationCommand  = new RelayCommand(_ => SetHomeLocation());
 
         LoadPlants();
         LoadAreas();
@@ -219,6 +303,7 @@ public class MainViewModel : INotifyPropertyChanged
         Plants.Clear();
         foreach (var p in _dataService.LoadPlants())
             Plants.Add(p);
+        RefreshPlantOptions();
     }
 
     private void LoadAreas()
@@ -226,6 +311,51 @@ public class MainViewModel : INotifyPropertyChanged
         Areas.Clear();
         foreach (var a in _dataService.LoadAreas())
             Areas.Add(a);
+        RefreshPlantOptions();
+
+        var lastId = _backupService.Settings.LastSelectedAreaId;
+        _selectedArea = lastId.HasValue
+            ? Areas.FirstOrDefault(a => a.Id == lastId) ?? Areas.FirstOrDefault()
+            : Areas.FirstOrDefault();
+        OnPropertyChanged(nameof(SelectedArea));
+        OnPropertyChanged(nameof(SelectedAreaTitle));
+        OnPropertyChanged(nameof(HasSelectedArea));
+    }
+
+    private void RefreshPlantOptions()
+    {
+        // Map plantId -> area name for all placed plants
+        var placed = new Dictionary<Guid, string>();
+        foreach (var area in Areas)
+            foreach (var pp in area.PlantPlacements)
+                placed.TryAdd(pp.PlantId, area.Name);
+
+        // Remove options for plants that no longer exist
+        var existingPlantIds = Plants.Select(p => p.Id).ToHashSet();
+        for (int i = PlantOptions.Count - 1; i >= 0; i--)
+            if (!existingPlantIds.Contains(PlantOptions[i].Plant.Id))
+                PlantOptions.RemoveAt(i);
+
+        // Add options for new plants
+        var optionIds = PlantOptions.Select(o => o.Plant.Id).ToHashSet();
+        foreach (var plant in Plants)
+            if (!optionIds.Contains(plant.Id))
+                PlantOptions.Add(new PlantOption(plant));
+
+        // Update availability for all options
+        foreach (var opt in PlantOptions)
+        {
+            if (placed.TryGetValue(opt.Plant.Id, out var areaName))
+            {
+                opt.IsAvailable = false;
+                opt.PlacedAreaName = areaName;
+            }
+            else
+            {
+                opt.IsAvailable = true;
+                opt.PlacedAreaName = "";
+            }
+        }
     }
 
     private void LoadEntries()
@@ -257,10 +387,16 @@ public class MainViewModel : INotifyPropertyChanged
         {
             var plants = Plants
                 .Where(p => p.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
-                .Select(p => new PlantSummary
+                .Select(p =>
                 {
-                    Name      = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
-                    LatinName = p.LatinName
+                    var entry = p.DiaryEntries.First(e => e.Date.Date == date && selector(e));
+                    return new PlantSummary
+                    {
+                        PlantId   = p.Id,
+                        Name      = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
+                        LatinName = p.LatinName,
+                        Notes     = entry.Notes ?? ""
+                    };
                 })
                 .ToList();
 
@@ -337,6 +473,7 @@ public class MainViewModel : INotifyPropertyChanged
         Plants.Remove(SelectedPlant);
         SelectedPlant = null;
         Save();
+        RefreshPlantOptions();
         CanvasRefreshRequested?.Invoke();
     }
 
@@ -396,15 +533,36 @@ public class MainViewModel : INotifyPropertyChanged
     private void CalendarAddEntry()
     {
         if (!_selectedCalendarDate.HasValue) return;
-
         var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList())
             { Owner = App.Current.MainWindow };
-
         if (dialog.ShowDialog() != true) return;
+        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+    }
 
-        var plant    = dialog.SelectedPlant!;
-        var newEntry = dialog.Entry;
+    private void EditCalendarEntry(Guid plantId)
+    {
+        if (!_selectedCalendarDate.HasValue) return;
+        var plant = Plants.FirstOrDefault(p => p.Id == plantId);
+        if (plant == null) return;
+        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList(), plant)
+            { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+    }
 
+    // Called from garden planner double-click
+    public void OpenActivityDialogForPlacement(Guid plantId)
+    {
+        var plant = Plants.FirstOrDefault(p => p.Id == plantId);
+        if (plant == null) return;
+        var dialog = new CalendarEntryDialog(DateTime.Today, Plants.ToList(), plant)
+            { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+    }
+
+    private void SaveCalendarEntry(Plant plant, DiaryEntry newEntry)
+    {
         var existing = plant.DiaryEntries.FirstOrDefault(e => e.Date.Date == newEntry.Date.Date);
         if (existing != null)
         {
@@ -420,7 +578,6 @@ public class MainViewModel : INotifyPropertyChanged
         {
             plant.DiaryEntries.Add(newEntry);
         }
-
         if (SelectedPlant?.Id == plant.Id) LoadEntries();
         Save();
     }
@@ -469,6 +626,7 @@ public class MainViewModel : INotifyPropertyChanged
         Areas.Remove(SelectedArea);
         SelectedArea = null;
         SaveAreas();
+        RefreshPlantOptions();
     }
 
     private void DeletePlacement()
@@ -477,12 +635,18 @@ public class MainViewModel : INotifyPropertyChanged
         SelectedArea.PlantPlacements.Remove(SelectedPlacement);
         SelectedPlacement = null;
         SaveAreas();
+        RefreshPlantOptions();
         CanvasRefreshRequested?.Invoke();
     }
 
     public PlantPlacement? AddPlacement(double x, double y)
     {
         if (SelectedArea == null || PlantToPlace == null) return null;
+
+        // Each plant can only be placed once across all areas
+        var alreadyPlaced = Areas.Any(a => a.PlantPlacements.Any(p => p.PlantId == PlantToPlace.Id));
+        if (alreadyPlaced) return null;
+
         var placement = new PlantPlacement
         {
             PlantId = PlantToPlace.Id,
@@ -492,10 +656,121 @@ public class MainViewModel : INotifyPropertyChanged
         };
         SelectedArea.PlantPlacements.Add(placement);
         SaveAreas();
+        RefreshPlantOptions();
         return placement;
     }
 
-    // ── Backup ────────────────────────────────────────────────────────────────
+    // ── Weather ───────────────────────────────────────────────────────────────
+
+    private async Task LoadWeatherAsync()
+    {
+        var settings = _backupService.Settings;
+        if (!settings.HomeLatitude.HasValue || !_selectedCalendarDate.HasValue)
+        {
+            DayWeather = null;
+            return;
+        }
+
+        IsLoadingWeather = true;
+        DayWeather = null;
+        try
+        {
+            DayWeather = await _weatherService.GetWeatherAsync(
+                settings.HomeLatitude.Value,
+                settings.HomeLongitude!.Value,
+                DateOnly.FromDateTime(_selectedCalendarDate.Value));
+        }
+        catch (Exception ex)
+        {
+            DayWeather = new DayWeather { IsAvailable = false, Error = ex.Message };
+        }
+        finally
+        {
+            IsLoadingWeather = false;
+        }
+    }
+
+    private void SetHomeLocation()
+    {
+        var settings = _backupService.Settings;
+        var dialog = new LocationPickerDialog(settings.HomeLatitude, settings.HomeLongitude)
+            { Owner = System.Windows.Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+
+        settings.HomeLatitude  = dialog.Latitude;
+        settings.HomeLongitude = dialog.Longitude;
+        _backupService.SaveSettings();
+
+        OnPropertyChanged(nameof(HasHomeLocation));
+        OnPropertyChanged(nameof(ShowWeatherNoLocation));
+        _ = LoadWeatherAsync();
+    }
+
+    // ── Backup / Restore ──────────────────────────────────────────────────────
+
+    private void RestoreBackup()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title            = "Select a Backup File to Restore (data or areas file)",
+            Filter           = "JSON backup files|GardenDiary_*.json|All JSON files|*.json",
+            InitialDirectory = Directory.Exists(_backupService.Settings.BackupFolderPath)
+                                   ? _backupService.Settings.BackupFolderPath
+                                   : null
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        // Accept either the data file or the areas file — derive the other automatically
+        string dataPath, areasPath;
+        if (BackupService.IsAreasBackupFile(dlg.FileName))
+        {
+            areasPath = dlg.FileName;
+            dataPath  = BackupService.GetDataBackupPath(dlg.FileName);
+        }
+        else
+        {
+            dataPath  = dlg.FileName;
+            areasPath = BackupService.GetAreasBackupPath(dlg.FileName);
+        }
+
+        var missing = !File.Exists(dataPath)  ? $"Data file:\n  {dataPath}"
+                    : !File.Exists(areasPath) ? $"Areas file:\n  {areasPath}"
+                    : null;
+        if (missing != null)
+        {
+            System.Windows.MessageBox.Show(
+                $"Cannot restore — the corresponding backup file was not found:\n\n{missing}\n\n" +
+                "Both files must be present in the same folder.",
+                "Restore Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            return;
+        }
+
+        var confirm = System.Windows.MessageBox.Show(
+            $"Restore from:\n  • {Path.GetFileName(dataPath)}\n  • {Path.GetFileName(areasPath)}\n\n" +
+            "A safety backup of the current data will be created first. Continue?",
+            "Restore Backup", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+        try { _backupService.SafetyBackup(); }
+        catch (Exception ex) { StatusText = $"Safety backup warning: {ex.Message}"; }
+
+        try
+        {
+            _backupService.Restore(dataPath, areasPath);
+            LoadPlants();
+            LoadAreas();
+            CanvasRefreshRequested?.Invoke();
+            StatusText = "Backup restored successfully.";
+            System.Windows.MessageBox.Show("Backup restored successfully!", "Restore Complete",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            StatusText = $"Restore failed: {ex.Message}";
+            System.Windows.MessageBox.Show($"Restore failed:\n{ex.Message}", "Restore Error",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+        }
+    }
 
     private void BackupNow()
     {

@@ -16,12 +16,19 @@
 
         <!-- ===== Menu bar ===== -->
         <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_Settings">
+                <MenuItem Header="Set _Home Location…"
+                          Command="{Binding SetHomeLocationCommand}"/>
+            </MenuItem>
             <MenuItem Header="_Backup">
                 <MenuItem Header="Backup _Now"
                           Command="{Binding BackupNowCommand}"
                           InputGestureText="Ctrl+B"/>
                 <MenuItem Header="_Configure Backup Folder…"
                           Command="{Binding ConfigureBackupCommand}"/>
+                <Separator/>
+                <MenuItem Header="_Restore Backup…"
+                          Command="{Binding RestoreBackupCommand}"/>
             </MenuItem>
         </Menu>
 
@@ -79,6 +86,82 @@
                             </Grid>
                         </Border>
 
+                        <!-- Weather panel -->
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,10"
+                                Background="#EBF5FB" CornerRadius="4" Padding="10,7">
+                            <Grid>
+                                <!-- No home location -->
+                                <TextBlock FontSize="11" FontStyle="Italic" Foreground="#777"
+                                           Text="Set home location in Settings → Set Home Location to view weather.">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowWeatherNoLocation}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Loading -->
+                                <TextBlock FontSize="11" FontStyle="Italic" Foreground="#555"
+                                           Text="Loading weather…">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowWeatherLoading}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Error -->
+                                <TextBlock FontSize="11" Foreground="#C0392B"
+                                           Text="{Binding WeatherErrorText}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ShowWeatherError}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Weather data -->
+                                <WrapPanel>
+                                    <WrapPanel.Style>
+                                        <Style TargetType="WrapPanel">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasWeather}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </WrapPanel.Style>
+                                    <TextBlock Text="{Binding WeatherCondition}" FontWeight="SemiBold" Margin="0,0,14,0"/>
+                                    <TextBlock Text="Temp:" Foreground="#555" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding WeatherTempRange}" Margin="0,0,14,0"/>
+                                    <TextBlock Text="Wind:" Foreground="#555" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding WeatherWind}" Margin="0,0,14,0"/>
+                                    <TextBlock Text="Rain:" Foreground="#555" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding WeatherPrecipitation}" Margin="0,0,14,0"/>
+                                    <TextBlock Text="Sunrise:" Foreground="#555" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding WeatherSunrise}" Margin="0,0,14,0"/>
+                                    <TextBlock Text="Sunset:" Foreground="#555" Margin="0,0,3,0"/>
+                                    <TextBlock Text="{Binding WeatherSunset}"/>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
+
                         <!-- Empty state -->
                         <TextBlock DockPanel.Dock="Top"
                                    Text="No activities recorded for this day."
@@ -114,15 +197,28 @@
                                                                Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
                                                 </Border>
 
-                                                <!-- Plant list with latin name -->
+                                                <!-- Plant list with latin name, notes, edit button -->
                                                 <ItemsControl ItemsSource="{Binding Plants}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <StackPanel Margin="10,3,0,6">
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
-                                                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
-                                                                </StackPanel>
+                                                                <!-- Name row + Edit button -->
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
+                                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="1" Content="Edit"
+                                                                            Padding="6,1" FontSize="11"
+                                                                            Command="{Binding DataContext.EditCalendarEntryCommand,
+                                                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            CommandParameter="{Binding PlantId}"/>
+                                                                </Grid>
+                                                                <!-- Latin name -->
                                                                 <TextBlock Text="{Binding LatinName}"
                                                                            FontStyle="Italic" Foreground="#888"
                                                                            FontSize="11" Margin="14,1,0,0">
@@ -130,6 +226,21 @@
                                                                         <Style TargetType="TextBlock">
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding LatinName}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <!-- Notes -->
+                                                                <TextBlock Text="{Binding Notes}"
+                                                                           FontStyle="Italic" Foreground="#666"
+                                                                           FontSize="11" TextWrapping="Wrap"
+                                                                           Margin="14,2,0,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Notes}" Value="">
                                                                                     <Setter Property="Visibility" Value="Collapsed"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
@@ -300,7 +411,7 @@
                                                    FontWeight="SemiBold" FontSize="13"/>
                                         <TextBlock FontSize="11" Foreground="#888">
                                             <TextBlock.Text>
-                                                <MultiBinding StringFormat="{}{0} × {1} units">
+                                                <MultiBinding StringFormat="{}{0} × {1} cm">
                                                     <Binding Path="Width"/>
                                                     <Binding Path="Height"/>
                                                 </MultiBinding>
@@ -316,22 +427,128 @@
                     <GridSplitter Grid.Column="1" Width="5"
                                   HorizontalAlignment="Stretch" Background="#DDD"/>
 
-                    <!-- RIGHT: Canvas panel -->
-                    <DockPanel Grid.Column="2" Margin="10">
+                    <!-- RIGHT: Canvas panel (or grey placeholder) -->
+                    <Grid Grid.Column="2">
+
+                    <!-- Placeholder shown when no area is selected -->
+                    <Border Background="#E0E0E0">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedArea}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="Select or create a garden area to begin planning."
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="#888" FontStyle="Italic" FontSize="14"/>
+                    </Border>
+
+                    <DockPanel Margin="10">
+                        <DockPanel.Style>
+                            <Style TargetType="DockPanel">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedArea}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </DockPanel.Style>
 
                         <!-- Toolbar: plant picker + radius -->
                         <Border DockPanel.Dock="Top" Margin="0,0,0,6" Padding="4,4">
                             <WrapPanel>
                                 <TextBlock Text="Place plant:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox ItemsSource="{Binding Plants}"
-                                          SelectedItem="{Binding PlantToPlace}"
-                                          DisplayMemberPath="CommonName"
-                                          Width="155" Margin="0,0,10,0"/>
-                                <TextBlock Text="Default radius:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <ComboBox ItemsSource="{Binding PlantOptions}"
+                                          SelectedItem="{Binding SelectedPlantOption}"
+                                          Width="155" Margin="0,0,10,0">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DisplayText}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsAvailable}" Value="False">
+                                                                <Setter Property="Foreground" Value="#AAAAAA"/>
+                                                                <Setter Property="FontStyle" Value="Italic"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="IsEnabled" Value="{Binding IsAvailable}"/>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                                <TextBlock Text="Default radius (cm):" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                 <TextBox Text="{Binding DefaultPlacementRadius, UpdateSourceTrigger=LostFocus}"
                                          Width="46" Margin="0,0,10,0" Padding="3,2" VerticalContentAlignment="Center"/>
                                 <TextBlock Text="— click canvas to place, drag circle to move"
                                            VerticalAlignment="Center" Foreground="#999" FontStyle="Italic" FontSize="11"/>
+                                <Separator Width="1" Height="20" Margin="10,0"/>
+                                <TextBlock Text="Zoom:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <Button Content="−" Width="24" Margin="0,0,2,0" Click="ZoomOut_Click"
+                                        ToolTip="Zoom out"/>
+                                <TextBlock x:Name="ZoomLabel" Text="100%" Width="38"
+                                           TextAlignment="Center" VerticalAlignment="Center"/>
+                                <Button Content="+" Width="24" Margin="2,0,2,0" Click="ZoomIn_Click"
+                                        ToolTip="Zoom in"/>
+                                <Button Content="↺" Width="28" Margin="2,0,0,0" Click="ZoomReset_Click"
+                                        ToolTip="Reset zoom and scroll position"/>
+                            </WrapPanel>
+                        </Border>
+
+                        <!-- Mouse interaction help strip -->
+                        <Border DockPanel.Dock="Top" Margin="0,0,0,4" Padding="8,5"
+                                Background="#FAFAFA" BorderBrush="#E0E0E0" BorderThickness="0,1,0,1">
+                            <WrapPanel>
+                                <TextBlock Text="Controls:" FontWeight="SemiBold" FontSize="11"
+                                           Foreground="#555" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                                <!-- helper macro: each entry is [kbd chip] description -->
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Left-click  canvas" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Place plant" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                           VerticalAlignment="Center"/>
+
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Left-click  circle" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Select" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                           VerticalAlignment="Center"/>
+
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Drag  circle" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Move plant" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                           VerticalAlignment="Center"/>
+
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Double-click  circle" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Add activity" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                           VerticalAlignment="Center"/>
+
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Middle-drag" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Pan" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                           VerticalAlignment="Center"/>
+
+                                <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
+                                    <TextBlock Text="Scroll wheel" FontSize="10" Foreground="#333"/>
+                                </Border>
+                                <TextBlock Text="Zoom  (0.1× – 10×)" FontSize="11" Foreground="#555" Margin="0,0,0,2"
+                                           VerticalAlignment="Center"/>
                             </WrapPanel>
                         </Border>
 
@@ -350,7 +567,7 @@
                                            Text="{Binding SelectedPlacementLabel}"
                                            VerticalAlignment="Center" Foreground="#555"/>
 
-                                <TextBlock Grid.Column="1" Text="Radius:"
+                                <TextBlock Grid.Column="1" Text="Radius (cm):"
                                            VerticalAlignment="Center" Margin="12,0,4,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -397,17 +614,23 @@
                         </Border>
 
                         <!-- Canvas viewport -->
-                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                        <ScrollViewer x:Name="GardenScrollViewer"
+                                      HorizontalScrollBarVisibility="Auto"
                                       VerticalScrollBarVisibility="Auto"
                                       Background="#BDBDBD"
-                                      Padding="20">
+                                      Padding="20"
+                                      PreviewMouseWheel="GardenScrollViewer_PreviewMouseWheel"
+                                      PreviewMouseDown="GardenScrollViewer_PreviewMouseDown"
+                                      PreviewMouseMove="GardenScrollViewer_PreviewMouseMove"
+                                      PreviewMouseUp="GardenScrollViewer_PreviewMouseUp">
                             <Canvas x:Name="GardenCanvas"
                                     Background="#E8F5E9"
                                     IsVisibleChanged="GardenCanvas_IsVisibleChanged"
                                     MouseLeftButtonDown="GardenCanvas_MouseLeftButtonDown"
-                                    Cursor="Crosshair"/>
+                                    Cursor="Cross"/>
                         </ScrollViewer>
                     </DockPanel>
+                    </Grid><!-- end right panel wrapper -->
                 </Grid>
             </TabItem>
 
