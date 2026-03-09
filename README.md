@@ -13,24 +13,57 @@ A Windows WPF desktop app to track plant care activities in your garden — beca
 
 ## Features
 
-- **Plant management** — track Common Name, Latin Name, and Variety
-- **Diary entries per plant** — log Planting, Watering, Fertilizing, Weeding, Mulching, and Pruning with notes
-- **Calendar view** — select any day to see all activities across all plants, colour-coded by activity type
-- **Backup** — manual backup on demand and automatic daily backup to a folder of your choice
-- **JSON persistence** — data stored in `%AppData%\GardenDiary\data.json`
+### 🌿 Plant Management
+- Track **Common Name**, **Latin Name**, and **Variety** per plant
+- Full CRUD — add, edit, and delete plants
+- Per-plant diary with **Planting, Watering, Fertilizing, Weeding, Mulching, Pruning** and free-text notes
 
-## Screenshots
+### 📅 Calendar View
+- Select any day to see all activities across all plants, colour-coded by activity type
+- **Edit entries directly** from the calendar — each plant row has an Edit button
+- Notes displayed inline under each plant entry
+- **Add Activity** shortcut on any day
 
-| Calendar View | Plants & Diary |
-|---|---|
-| Activities grouped by type with colour-coded badges | Full CRUD for plants and diary entries |
+### 🌤 Weather & Sunrise/Sunset
+- Set your **home location** by clicking on an interactive OpenStreetMap map (WebView2)
+- Selected date shows **weather condition, temperature range, wind speed & direction, precipitation, sunrise, and sunset** via the free [Open-Meteo](https://open-meteo.com) API
+- Covers historical dates back to 1940 (archive API) and forecasts up to 16 days ahead
+
+### 🗺 Garden Planner
+- Create named garden **areas** with width × height in cm
+- Place plants as **draggable circles** on a canvas; each plant can only be placed once across all areas
+- Circles show **common name, latin name, and variety**
+- **Grid lines** with cm measurements for reference
+- **Zoom** 0.1× – 10× via scroll wheel or buttons; **pan** with middle-mouse drag
+- **Double-click** any plant circle to open Add Activity pre-filled with today's date and existing activities ticked
+- Mouse interaction help strip always visible in the planner
+
+### 💾 Backup & Restore
+- Manual backup on demand and **automatic daily backup** on startup
+- Both `data.json` and `areas.json` are backed up together
+- **Restore** from any backup — select either the data file or the areas file and the other is found automatically
+- A safety backup is created before any restore
+
+### ⚙️ Data & Persistence
+- JSON storage in `%AppData%\GardenDiary\`
+- Last selected garden area remembered across sessions
+- Settings (backup path, home location) stored in `settings.json`
+
+---
 
 ## Requirements
 
 - Windows 10/11
 - [.NET 9 Runtime](https://dotnet.microsoft.com/download/dotnet/9.0)
+- Microsoft Edge WebView2 Runtime (pre-installed on Windows 11; available via Windows Update on Windows 10)
 
 ## Getting Started
+
+### Download
+
+Grab the latest self-contained `.exe` from the [Releases](https://github.com/reckhou/GardenDiary/releases) page — no .NET install required.
+
+### Build from source
 
 ```bash
 git clone https://github.com/reckhou/GardenDiary.git
@@ -65,10 +98,12 @@ CI runs automatically on every push and pull request via GitHub Actions on `wind
 
 ```
 GardenDiary/
-├── Models/            Plant, DiaryEntry, AppSettings, DayTaskGroup, PlantSummary
-├── ViewModels/        MainViewModel, RelayCommand
-├── Views/             PlantEditDialog, DiaryEntryEditDialog, CalendarEntryDialog, BackupSettingsDialog
-├── Services/          DataService, BackupService
+├── Models/            Plant, DiaryEntry, AppSettings, DayWeather,
+│                      DayTaskGroup, PlantSummary, GardenArea, PlantPlacement
+├── ViewModels/        MainViewModel, RelayCommand, PlantOption
+├── Views/             PlantEditDialog, DiaryEntryEditDialog, CalendarEntryDialog,
+│                      BackupSettingsDialog, GardenAreaEditDialog, LocationPickerDialog
+├── Services/          DataService, BackupService, WeatherService
 ├── Converters/        StringToBrushConverter
 └── MainWindow.xaml
 
@@ -77,7 +112,8 @@ GardenDiary.Tests/
 └── BackupServiceTests.cs
 
 .github/workflows/
-└── ci.yml             Build + test on every push/PR
+├── ci.yml             Build + test on every push/PR
+└── release.yml        Publish self-contained win-x64 exe on version tags
 ```
 
 ## Activity Colours
@@ -90,6 +126,18 @@ GardenDiary.Tests/
 | 🌿 Weeding | Brown |
 | 🪵 Mulching | Amber |
 | ✂️ Pruning | Purple |
+
+## Garden Planner Controls
+
+| Input | Action |
+|---|---|
+| Left-click empty canvas | Place selected plant |
+| Left-click circle | Select plant |
+| Drag circle | Move plant |
+| Double-click circle | Open Add Activity dialog |
+| Middle-mouse drag | Pan canvas |
+| Scroll wheel | Zoom in / out |
+| −  +  ↺ buttons | Zoom out / in / reset |
 
 ## License
 
