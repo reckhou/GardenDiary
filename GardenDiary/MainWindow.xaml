@@ -11,6 +11,7 @@
     </Window.DataContext>
     <Window.Resources>
         <conv:StringToBrushConverter x:Key="StringToBrush"/>
+        <DropShadowEffect x:Key="DropShadow" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
     </Window.Resources>
 
     <DockPanel>
@@ -179,6 +180,19 @@
                             </TextBlock.Style>
                         </TextBlock>
 
+                        <!-- Hover preview panel (docked at bottom) -->
+                        <Border x:Name="DayPreviewBorder" DockPanel.Dock="Bottom" Height="130"
+                                BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
+                                Margin="0,6,0,0" Visibility="Collapsed">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F0F4F0" Padding="8,3">
+                                    <TextBlock x:Name="DayPreviewLabel" Text="" FontSize="11" Foreground="#555"/>
+                                </Border>
+                                <Canvas x:Name="DayPreviewCanvas" Background="#E8F5E9"
+                                        SizeChanged="DayPreviewCanvas_SizeChanged"/>
+                            </DockPanel>
+                        </Border>
+
                         <!-- Task groups -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding DayTasks}">
@@ -189,36 +203,54 @@
                                                 Padding="0,0,0,10">
                                             <StackPanel>
 
-                                                <!-- Activity badge (unique color per activity) -->
-                                                <Border Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
-                                                        CornerRadius="4" Padding="8,3"
-                                                        HorizontalAlignment="Left" Margin="0,0,0,8">
-                                                    <TextBlock Text="{Binding ActivityName}"
-                                                               FontWeight="Bold" FontSize="13"
-                                                               Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
-                                                </Border>
+                                                <!-- Activity badge + Edit button -->
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="0"
+                                                            Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                            CornerRadius="4" Padding="8,3"
+                                                            HorizontalAlignment="Left">
+                                                        <TextBlock Text="{Binding ActivityName}"
+                                                                   FontWeight="Bold" FontSize="13"
+                                                                   Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
+                                                    </Border>
+                                                    <Button Grid.Column="1" Content="Edit"
+                                                            Padding="6,2" VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.EditCalendarEntryCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding ActivityName}"/>
+                                                </Grid>
 
-                                                <!-- Plant list with latin name, notes, edit button -->
+                                                <!-- Plant list with location, latin name, notes -->
                                                 <ItemsControl ItemsSource="{Binding Plants}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
-                                                            <StackPanel Margin="10,3,0,6">
-                                                                <!-- Name row + Edit button -->
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*"/>
-                                                                        <ColumnDefinition Width="Auto"/>
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                                                                        <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
-                                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
-                                                                    </StackPanel>
-                                                                    <Button Grid.Column="1" Content="Edit"
-                                                                            Padding="6,1" FontSize="11"
-                                                                            Command="{Binding DataContext.EditCalendarEntryCommand,
-                                                                                      RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                            CommandParameter="{Binding PlantId}"/>
-                                                                </Grid>
+                                                            <StackPanel Margin="10,3,0,6"
+                                                                        Tag="{Binding PlantId}"
+                                                                        MouseEnter="PlantRow_MouseEnter"
+                                                                        MouseLeave="PlantRow_MouseLeave">
+                                                                <!-- Name row -->
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
+                                                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                                </StackPanel>
+                                                                <!-- Location -->
+                                                                <TextBlock Text="{Binding LocationLabel}"
+                                                                           Foreground="#4CAF50" FontSize="10"
+                                                                           Margin="14,1,0,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding LocationAreaName}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
                                                                 <!-- Latin name -->
                                                                 <TextBlock Text="{Binding LatinName}"
                                                                            FontStyle="Italic" Foreground="#888"
@@ -266,7 +298,7 @@
             <!-- ══════════════════════════════════════════════════
                  Tab 2: Plants & Diary
             ══════════════════════════════════════════════════ -->
-            <TabItem Header="  Plants &amp; Diary  ">
+            <TabItem Header="  Plants &amp; Diary  " Height="22" Margin="-2,0,-2,0" VerticalAlignment="Bottom">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="270" MinWidth="180"/>
@@ -292,14 +324,47 @@
 
                         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal"
                                     HorizontalAlignment="Right" Margin="0,6,0,0">
-                            <Button Content="Edit"   Command="{Binding EditPlantCommand}"
+                            <Button Content="Edit"      Command="{Binding EditPlantCommand}"
                                     Width="68" Margin="0,0,6,0"/>
-                            <Button Content="Delete" Command="{Binding DeletePlantCommand}" Width="68"/>
+                            <Button Content="Duplicate" Command="{Binding DuplicatePlantCommand}"
+                                    Width="72" Margin="0,0,6,0"/>
+                            <Button Content="Delete"    Command="{Binding DeletePlantCommand}" Width="68"/>
                         </StackPanel>
 
-                        <ListBox ItemsSource="{Binding Plants}"
+                        <!-- Filter dropdown -->
+                        <ComboBox DockPanel.Dock="Top" Margin="0,0,0,6"
+                                  ItemsSource="{Binding PlantFilterItems}"
+                                  SelectedItem="{Binding SelectedPlantFilter}"
+                                  DisplayMemberPath="Label"/>
+
+                        <!-- Plant location preview -->
+                        <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
+                                BorderBrush="#CCC" BorderThickness="1" CornerRadius="3"
+                                Height="160" ClipToBounds="True">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding SelectedPlantHasLocation}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Background="#F0F4F0" Padding="8,4">
+                                    <TextBlock Text="{Binding SelectedPlantLocationLabel}"
+                                               FontSize="11" FontWeight="SemiBold" Foreground="#444"/>
+                                </Border>
+                                <Canvas x:Name="PlantLocationCanvas" Background="#E8F5E9"
+                                        SizeChanged="PlantLocationCanvas_SizeChanged"/>
+                            </DockPanel>
+                        </Border>
+
+                        <ListBox ItemsSource="{Binding FilteredPlants}"
                                  SelectedItem="{Binding SelectedPlant}"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 MouseDoubleClick="PlantList_MouseDoubleClick">
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <StackPanel Orientation="Horizontal" Margin="2,4">
@@ -478,30 +543,14 @@
                         <Border DockPanel.Dock="Top" Margin="0,0,0,6" Padding="4,4">
                             <WrapPanel>
                                 <TextBlock Text="Place plant:" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <ComboBox ItemsSource="{Binding PlantOptions}"
+                                <ComboBox ItemsSource="{Binding UnplacedPlantOptions}"
                                           SelectedItem="{Binding SelectedPlantOption}"
                                           Width="155" Margin="0,0,10,0">
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
-                                            <TextBlock Text="{Binding DisplayText}">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding IsAvailable}" Value="False">
-                                                                <Setter Property="Foreground" Value="#AAAAAA"/>
-                                                                <Setter Property="FontStyle" Value="Italic"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
+                                            <TextBlock Text="{Binding Plant.CommonName}"/>
                                         </DataTemplate>
                                     </ComboBox.ItemTemplate>
-                                    <ComboBox.ItemContainerStyle>
-                                        <Style TargetType="ComboBoxItem">
-                                            <Setter Property="IsEnabled" Value="{Binding IsAvailable}"/>
-                                        </Style>
-                                    </ComboBox.ItemContainerStyle>
                                 </ComboBox>
                                 <TextBlock Text="Default radius (cm):" VerticalAlignment="Center" Margin="0,0,4,0"/>
                                 <TextBox Text="{Binding DefaultPlacementRadius, UpdateSourceTrigger=LostFocus}"
@@ -597,9 +646,11 @@
                                            VerticalAlignment="Center" Foreground="#555"/>
                                 <TextBlock Text="Radius (cm):"
                                            VerticalAlignment="Center" Margin="12,0,4,0"/>
-                                <TextBox Width="50" Padding="3,2"
+                                <TextBox x:Name="TxtPlacementRadius" Width="50" Padding="3,2"
                                          VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedPlacementRadius, UpdateSourceTrigger=LostFocus}"/>
+                                         Text="{Binding SelectedPlacementRadius, UpdateSourceTrigger=LostFocus}"
+                                         KeyDown="PlacementRadius_KeyDown"
+                                         LostFocus="PlacementRadius_LostFocus"/>
                                 <Button Content="Remove"
                                         Command="{Binding DeletePlacementCommand}"
                                         Width="72" Margin="8,0,0,0"/>
@@ -640,18 +691,27 @@
                                          Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
                                          LostFocus="ShapeField_LostFocus"
                                          KeyDown="ShapeField_KeyDown"/>
-                                <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,2,0"/>
-                                <ComboBox Width="50" Margin="0,0,8,0" x:Name="ShapeColorCombo"
-                                          SelectionChanged="ShapeColor_SelectionChanged">
-                                    <ComboBoxItem Tag="#90CAF9"><Border Background="#90CAF9" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#A5D6A7"><Border Background="#A5D6A7" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#FFE082"><Border Background="#FFE082" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#EF9A9A"><Border Background="#EF9A9A" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#CE93D8"><Border Background="#CE93D8" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#80CBC4"><Border Background="#80CBC4" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#BCAAA4"><Border Background="#BCAAA4" Width="30" Height="14"/></ComboBoxItem>
-                                    <ComboBoxItem Tag="#B0BEC5"><Border Background="#B0BEC5" Width="30" Height="14"/></ComboBoxItem>
-                                </ComboBox>
+                                <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                <!-- Color swatch button + popup palette -->
+                                <Grid Margin="0,0,8,0">
+                                    <Button x:Name="ShapeColorBtn" Width="32" Height="22"
+                                            Padding="0" Click="ShapeColorBtn_Click"
+                                            ToolTip="Choose colour">
+                                        <Border x:Name="ShapeColorPreview" Width="24" Height="14"
+                                                CornerRadius="2" Background="#90CAF9"/>
+                                    </Button>
+                                    <Popup x:Name="ColorPickerPopup" StaysOpen="False"
+                                           Placement="Bottom" PlacementTarget="{Binding ElementName=ShapeColorBtn}">
+                                        <Border Background="White" BorderBrush="#CCC" BorderThickness="1"
+                                                Padding="6" Effect="{StaticResource DropShadow}">
+                                            <StackPanel>
+                                                <WrapPanel x:Name="SwatchPanel" Width="168" Margin="0,0,0,6"/>
+                                                <Button Content="Custom colour…" Click="ShapeCustomColor_Click"
+                                                        HorizontalAlignment="Stretch" Padding="4,3"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Popup>
+                                </Grid>
                                 <Button Content="Bring to Front" Padding="6,2" Margin="0,0,4,0"
                                         Command="{Binding BringShapeToFrontCommand}"/>
                                 <Button Content="Send to Back" Padding="6,2" Margin="0,0,4,0"

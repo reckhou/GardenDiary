@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using GardenDiary.Helpers;
 using GardenDiary.Models;
 using GardenDiary.ViewModels;
 using Color = System.Windows.Media.Color;
@@ -49,31 +50,6 @@ public partial class MainWindow : Window
     private double _panScrollH;
     private double _panScrollV;
 
-    private static readonly string[] PlantPalette =
-    [
-        "#66BB6A", "#42A5F5", "#FFA726", "#EC407A",
-        "#AB47BC", "#26A69A", "#D4E157", "#FF7043",
-        "#78909C", "#8D6E63"
-    ];
-
-    /// <summary>
-    /// Returns the colour hex for a plant. Plants sharing the same non-empty emoji
-    /// get the same colour; others fall back to their index in the plant list.
-    /// </summary>
-    private static string GetPlantColor(Plant plant, List<Plant> plantList)
-    {
-        if (!string.IsNullOrWhiteSpace(plant.Emoji))
-        {
-            var distinctEmojis = plantList
-                .Where(p => !string.IsNullOrWhiteSpace(p.Emoji))
-                .Select(p => p.Emoji)
-                .Distinct()
-                .ToList();
-            var idx = distinctEmojis.IndexOf(plant.Emoji);
-            return PlantPalette[idx % PlantPalette.Length];
-        }
-        return PlantPalette[plantList.IndexOf(plant) % PlantPalette.Length];
-    }
 
     public MainWindow()
     {
@@ -85,6 +61,82 @@ public partial class MainWindow : Window
             vm.PropertyChanged        += OnVmPropertyChanged;
             vm.CanvasRefreshRequested += RefreshGardenCanvas;
         }
+    }
+
+    // ── Plants list ───────────────────────────────────────────────────────────
+
+    private void PlantList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm?.SelectedPlant != null && vm.EditPlantCommand.CanExecute(null))
+            vm.EditPlantCommand.Execute(null);
+    }
+
+    private void PlantLocationCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        => RefreshPlantLocationCanvas();
+
+    private void RefreshPlantLocationCanvas()
+    {
+        var vm    = DataContext as MainViewModel;
+        var area  = vm?.SelectedPlantLocationArea;
+        var plant = vm?.SelectedPlant;
+        if (area == null || plant == null) { PlantLocationCanvas.Children.Clear(); return; }
+        GardenPreviewHelper.Draw(PlantLocationCanvas, plant, area, vm!.Plants.ToList());
+    }
+
+    // ── Calendar hover preview ────────────────────────────────────────────────
+
+    private Guid _hoveredPlantId;
+
+    private void PlantRow_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid plantId) return;
+        _hoveredPlantId = plantId;
+        ShowDayPreview(plantId);
+    }
+
+    private void PlantRow_MouseLeave(object sender, MouseEventArgs e)
+    {
+        DayPreviewBorder.Visibility = Visibility.Collapsed;
+        DayPreviewCanvas.Children.Clear();
+    }
+
+    private void DayPreviewCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (DayPreviewBorder.Visibility == Visibility.Visible)
+            ShowDayPreview(_hoveredPlantId);
+    }
+
+    private void ShowDayPreview(Guid plantId)
+    {
+        var vm    = DataContext as MainViewModel;
+        if (vm == null) return;
+        var plant = vm.Plants.FirstOrDefault(p => p.Id == plantId);
+        if (plant == null) { DayPreviewBorder.Visibility = Visibility.Collapsed; return; }
+
+        var area  = vm.Areas.FirstOrDefault(a => a.PlantPlacements.Any(pp => pp.PlantId == plantId));
+        if (area == null) { DayPreviewBorder.Visibility = Visibility.Collapsed; return; }
+
+        DayPreviewBorder.Visibility = Visibility.Visible;
+        DayPreviewLabel.Text        = $"Located in: {area.Name}";
+        GardenPreviewHelper.Draw(DayPreviewCanvas, plant, area, vm.Plants.ToList());
+    }
+
+    // ── Placement radius ──────────────────────────────────────────────────────
+
+    private void PlacementRadius_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && sender is System.Windows.Controls.TextBox tb)
+        {
+            tb.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+            e.Handled = true;
+        }
+    }
+
+    private void PlacementRadius_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb)
+            tb.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
     }
 
     // ── Calendar ──────────────────────────────────────────────────────────────
@@ -107,6 +159,8 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(MainViewModel.SelectedArea))
             RefreshGardenCanvas();
+        if (e.PropertyName == nameof(MainViewModel.SelectedPlant))
+            RefreshPlantLocationCanvas();
     }
 
     private void GardenCanvas_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -187,7 +241,7 @@ public partial class MainWindow : Window
             var plant = plantList.FirstOrDefault(p => p.Id == placement.PlantId);
             if (plant == null) continue;
 
-            var colorHex = GetPlantColor(plant, plantList);
+            var colorHex = GardenPreviewHelper.GetPlantColor(plant, plantList);
             var fillColor = (Color)ColorConverter.ConvertFromString(colorHex);
             var isSelected = vm.SelectedPlacement?.Id == placement.Id;
 
@@ -278,7 +332,7 @@ public partial class MainWindow : Window
         }
 
         // Sync shape color combo if a shape is selected
-        SyncShapeColorCombo();
+        SyncColorPreview();
     }
 
     // ── Shapes on canvas ─────────────────────────────────────────────────────
@@ -379,7 +433,7 @@ public partial class MainWindow : Window
         }
         UpdateSelectionRing(prevPlantId, null);
         UpdateShapeSelectionRing(prevShapeId, shape.Id);
-        SyncShapeColorCombo();
+        SyncColorPreview();
         e.Handled = true;
     }
 
@@ -479,31 +533,103 @@ public partial class MainWindow : Window
         RefreshGardenCanvas();
     }
 
-    private void ShapeColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    // ── Colour palette ────────────────────────────────────────────────────────
+
+    private static readonly string[] PaletteColors =
+    [
+        // Reds / pinks
+        "#EF9A9A","#F48FB1","#F06292","#E57373",
+        // Oranges / yellows
+        "#FFCC80","#FFE082","#FFF176","#FFAB40",
+        // Greens
+        "#A5D6A7","#C5E1A5","#80CBC4","#80DEEA",
+        // Blues / purples
+        "#90CAF9","#9FA8DA","#CE93D8","#B39DDB",
+        // Browns / greys
+        "#BCAAA4","#B0BEC5","#CFD8DC","#D7CCC8",
+    ];
+
+    private bool _swatchesBuilt;
+
+    private void BuildSwatchesIfNeeded()
     {
-        if (sender is not System.Windows.Controls.ComboBox combo) return;
-        if (combo.SelectedItem is not ComboBoxItem item) return;
+        if (_swatchesBuilt) return;
+        _swatchesBuilt = true;
+
+        foreach (var hex in PaletteColors)
+        {
+            var swatch = new System.Windows.Controls.Button
+            {
+                Width   = 24, Height = 24,
+                Margin  = new Thickness(2),
+                Padding = new Thickness(0),
+                Tag     = hex,
+                ToolTip = hex,
+                Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex))
+            };
+            swatch.Click += Swatch_Click;
+            SwatchPanel.Children.Add(swatch);
+        }
+    }
+
+    private void Swatch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button btn || btn.Tag is not string hex) return;
+        ApplyShapeColor(hex);
+        ColorPickerPopup.IsOpen = false;
+    }
+
+    private void ShapeColorBtn_Click(object sender, RoutedEventArgs e)
+    {
+        BuildSwatchesIfNeeded();
+        SyncColorPreview();
+        ColorPickerPopup.IsOpen = true;
+    }
+
+    private void ShapeCustomColor_Click(object sender, RoutedEventArgs e)
+    {
+        ColorPickerPopup.IsOpen = false;
         var vm = DataContext as MainViewModel;
         if (vm?.SelectedShape == null) return;
-        var hex = item.Tag as string;
-        if (hex == null || hex == vm.SelectedShape.FillColor) return;
+
+        // Use Windows Forms ColorDialog (available via UseWindowsForms=true)
+        var dlg = new System.Windows.Forms.ColorDialog
+        {
+            FullOpen  = true,
+            AnyColor  = true,
+            Color     = ColorToFormsColor(vm.SelectedShape.FillColor)
+        };
+        if (dlg.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+        var hex = $"#{dlg.Color.R:X2}{dlg.Color.G:X2}{dlg.Color.B:X2}";
+        ApplyShapeColor(hex);
+    }
+
+    private void ApplyShapeColor(string hex)
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm?.SelectedShape == null || hex == vm.SelectedShape.FillColor) return;
         vm.SelectedShape.FillColor = hex;
+        SyncColorPreview();
         vm.SaveAreas();
         RefreshGardenCanvas();
     }
 
-    private void SyncShapeColorCombo()
+    private void SyncColorPreview()
     {
         var vm = DataContext as MainViewModel;
         if (vm?.SelectedShape == null) return;
-        foreach (ComboBoxItem item in ShapeColorCombo.Items)
+        var col = (Color)ColorConverter.ConvertFromString(vm.SelectedShape.FillColor);
+        ShapeColorPreview.Background = new SolidColorBrush(col);
+    }
+
+    private static System.Drawing.Color ColorToFormsColor(string hex)
+    {
+        try
         {
-            if (item.Tag is string hex && hex == vm.SelectedShape.FillColor)
-            {
-                ShapeColorCombo.SelectedItem = item;
-                return;
-            }
+            var col = (Color)ColorConverter.ConvertFromString(hex);
+            return System.Drawing.Color.FromArgb(col.R, col.G, col.B);
         }
+        catch { return System.Drawing.Color.LightBlue; }
     }
 
     private void UpdateShapeSelectionRing(Guid? deselectedId, Guid? selectedId)
@@ -543,7 +669,7 @@ public partial class MainWindow : Window
             if (pl != null)
             {
                 var plant    = plantList.FirstOrDefault(p => p.Id == pl.PlantId);
-                var colorHex = plant != null ? GetPlantColor(plant, plantList) : "#66BB6A";
+                var colorHex = plant != null ? GardenPreviewHelper.GetPlantColor(plant, plantList) : "#66BB6A";
                 var col      = (Color)ColorConverter.ConvertFromString(colorHex);
                 oldEllipse.Stroke          = new SolidColorBrush(col) { Opacity = 0.4 };
                 oldEllipse.StrokeThickness = 1.5;
@@ -603,6 +729,9 @@ public partial class MainWindow : Window
 
     private void GardenScrollViewer_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
+        // Commit any pending radius edit whenever the user clicks anywhere in the canvas area
+        TxtPlacementRadius.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+
         if (e.ChangedButton != MouseButton.Middle) return;
         _isPanning        = true;
         _panStartViewport = e.GetPosition(GardenScrollViewer);
@@ -709,8 +838,9 @@ public partial class MainWindow : Window
         if (area == null) return;
 
         var pos  = e.GetPosition(GardenCanvas);
-        var newX = Math.Clamp(pos.X - _dragOffset.X, _dragging.Radius, area.Width  - _dragging.Radius);
-        var newY = Math.Clamp(pos.Y - _dragOffset.Y, _dragging.Radius, area.Height - _dragging.Radius);
+        var r    = _dragging.Radius;
+        var newX = Math.Clamp(pos.X - _dragOffset.X, Math.Min(r, area.Width  - r), Math.Max(r, area.Width  - r));
+        var newY = Math.Clamp(pos.Y - _dragOffset.Y, Math.Min(r, area.Height - r), Math.Max(r, area.Height - r));
 
         _dragging.X = newX;
         _dragging.Y = newY;

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using GardenDiary.Models;
 using GardenDiary.Services;
 using GardenDiary.Views;
@@ -26,14 +27,30 @@ public class MainViewModel : INotifyPropertyChanged
     private GardenArea? _selectedArea;
     private Plant? _plantToPlace;
     private PlantOption? _selectedPlantOption;
+    private double _defaultRadius = 30;
     private PlantPlacement? _selectedPlacement;
     private GardenShape? _selectedShape;
 
     public ObservableCollection<Plant> Plants { get; } = new();
+    public ObservableCollection<Plant> FilteredPlants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
     public ObservableCollection<GardenArea> Areas { get; } = new();
     public ObservableCollection<PlantOption> PlantOptions { get; } = new();
+    public IEnumerable<PlantOption> UnplacedPlantOptions => PlantOptions.Where(o => o.IsAvailable);
+    public ObservableCollection<PlantFilterItem> PlantFilterItems { get; } = new();
+
+    private PlantFilterItem? _selectedPlantFilter;
+    public PlantFilterItem? SelectedPlantFilter
+    {
+        get => _selectedPlantFilter;
+        set
+        {
+            _selectedPlantFilter = value;
+            OnPropertyChanged();
+            RefreshFilteredPlants();
+        }
+    }
 
     // ── Plants & Diary ────────────────────────────────────────────────────────
 
@@ -45,9 +62,23 @@ public class MainViewModel : INotifyPropertyChanged
             _selectedPlant = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedPlantTitle));
+            OnPropertyChanged(nameof(SelectedPlantLocationArea));
+            OnPropertyChanged(nameof(SelectedPlantHasLocation));
+            OnPropertyChanged(nameof(SelectedPlantLocationLabel));
             LoadEntries();
         }
     }
+
+    // ── Plant location preview ────────────────────────────────────────────────
+
+    public GardenArea? SelectedPlantLocationArea =>
+        _selectedPlant == null ? null :
+        Areas.FirstOrDefault(a => a.PlantPlacements.Any(p => p.PlantId == _selectedPlant.Id));
+
+    public bool SelectedPlantHasLocation => SelectedPlantLocationArea != null;
+
+    public string SelectedPlantLocationLabel =>
+        SelectedPlantLocationArea == null ? "" : $"Located in: {SelectedPlantLocationArea.Name}";
 
     public DiaryEntry? SelectedEntry
     {
@@ -187,13 +218,12 @@ public class MainViewModel : INotifyPropertyChanged
 
     public double DefaultPlacementRadius
     {
-        get => _plantToPlace?.DefaultRadius ?? 30;
+        get => _defaultRadius;
         set
         {
-            if (_plantToPlace == null || value <= 0) return;
-            _plantToPlace.DefaultRadius = value;
+            if (value <= 0) return;
+            _defaultRadius = value;
             OnPropertyChanged();
-            Save();
         }
     }
 
@@ -261,6 +291,7 @@ public class MainViewModel : INotifyPropertyChanged
 
     public RelayCommand AddPlantCommand { get; }
     public RelayCommand EditPlantCommand { get; }
+    public RelayCommand DuplicatePlantCommand { get; }
     public RelayCommand DeletePlantCommand { get; }
     public RelayCommand AddEntryCommand { get; }
     public RelayCommand EditEntryCommand { get; }
@@ -286,15 +317,16 @@ public class MainViewModel : INotifyPropertyChanged
         _backupService = new BackupService(_dataService.AppDataDir, _dataService.DataFilePath, _dataService.AreasFilePath);
 
         AddPlantCommand         = new RelayCommand(_ => AddPlant());
-        EditPlantCommand        = new RelayCommand(_ => EditPlant(),   _ => SelectedPlant != null);
-        DeletePlantCommand      = new RelayCommand(_ => DeletePlant(), _ => SelectedPlant != null);
+        EditPlantCommand        = new RelayCommand(_ => EditPlant(),        _ => SelectedPlant != null);
+        DuplicatePlantCommand   = new RelayCommand(_ => DuplicatePlant(),   _ => SelectedPlant != null);
+        DeletePlantCommand      = new RelayCommand(_ => DeletePlant(),      _ => SelectedPlant != null);
         AddEntryCommand         = new RelayCommand(_ => AddEntry(),    _ => SelectedPlant != null);
         EditEntryCommand        = new RelayCommand(_ => EditEntry(),   _ => SelectedEntry != null);
         DeleteEntryCommand      = new RelayCommand(_ => DeleteEntry(), _ => SelectedEntry != null);
         BackupNowCommand        = new RelayCommand(_ => BackupNow());
         ConfigureBackupCommand  = new RelayCommand(_ => ConfigureBackup());
         CalendarAddEntryCommand  = new RelayCommand(_ => CalendarAddEntry(), _ => SelectedCalendarDate.HasValue);
-        EditCalendarEntryCommand = new RelayCommand(obj => { if (obj is Guid id) EditCalendarEntry(id); });
+        EditCalendarEntryCommand = new RelayCommand(obj => { if (obj is string name) EditActivityEntry(name); });
         AddAreaCommand          = new RelayCommand(_ => AddArea());
         EditAreaCommand         = new RelayCommand(_ => EditArea(),    _ => SelectedArea != null);
         DeleteAreaCommand       = new RelayCommand(_ => DeleteArea(),  _ => SelectedArea != null);
@@ -373,9 +405,13 @@ public class MainViewModel : INotifyPropertyChanged
             if (!optionIds.Contains(plant.Id))
                 PlantOptions.Add(new PlantOption(plant));
 
-        // Update availability for all options
+        // Update plant reference (handles renames) and availability for all options
         foreach (var opt in PlantOptions)
         {
+            var current = Plants.FirstOrDefault(p => p.Id == opt.Plant.Id);
+            if (current != null && !ReferenceEquals(current, opt.Plant))
+                opt.Plant = current;
+
             if (placed.TryGetValue(opt.Plant.Id, out var areaName))
             {
                 opt.IsAvailable = false;
@@ -387,6 +423,54 @@ public class MainViewModel : INotifyPropertyChanged
                 opt.PlacedAreaName = "";
             }
         }
+
+        OnPropertyChanged(nameof(UnplacedPlantOptions));
+        RefreshPlantFilters();
+        RefreshFilteredPlants();
+
+        OnPropertyChanged(nameof(SelectedPlantLocationArea));
+        OnPropertyChanged(nameof(SelectedPlantHasLocation));
+        OnPropertyChanged(nameof(SelectedPlantLocationLabel));
+    }
+
+    private void RefreshPlantFilters()
+    {
+        var prevAreaId = _selectedPlantFilter?.AreaId;
+        PlantFilterItems.Clear();
+        PlantFilterItems.Add(new PlantFilterItem("All Plants", null));
+        PlantFilterItems.Add(new PlantFilterItem("Not Placed", Guid.Empty));
+        foreach (var area in Areas)
+            PlantFilterItems.Add(new PlantFilterItem(area.Name, area.Id));
+
+        _selectedPlantFilter = PlantFilterItems.FirstOrDefault(f => f.AreaId == prevAreaId)
+                               ?? PlantFilterItems[0];
+        OnPropertyChanged(nameof(SelectedPlantFilter));
+    }
+
+    private void RefreshFilteredPlants()
+    {
+        FilteredPlants.Clear();
+        var filter = _selectedPlantFilter;
+
+        IEnumerable<Plant> subset;
+        if (filter == null || filter.AreaId == null)
+        {
+            subset = Plants;
+        }
+        else if (filter.AreaId == Guid.Empty)
+        {
+            var placed = Areas.SelectMany(a => a.PlantPlacements).Select(p => p.PlantId).ToHashSet();
+            subset = Plants.Where(p => !placed.Contains(p.Id));
+        }
+        else
+        {
+            var area = Areas.FirstOrDefault(a => a.Id == filter.AreaId);
+            var areaPlantIds = area?.PlantPlacements.Select(p => p.PlantId).ToHashSet() ?? [];
+            subset = Plants.Where(p => areaPlantIds.Contains(p.Id));
+        }
+
+        foreach (var p in subset.OrderBy(p => p.CommonName, StringComparer.CurrentCultureIgnoreCase))
+            FilteredPlants.Add(p);
     }
 
     private void LoadEntries()
@@ -397,7 +481,7 @@ public class MainViewModel : INotifyPropertyChanged
             Entries.Add(e);
     }
 
-    private static readonly (string Name, Func<DiaryEntry, bool> Selector, string Bg, string Fg)[] ActivityDefs =
+    internal static readonly (string Name, Func<DiaryEntry, bool> Selector, string Bg, string Fg)[] ActivityDefs =
     {
         ("Planting",    e => e.Planting,    "#C8E6C9", "#1B5E20"),
         ("Watering",    e => e.Watering,    "#BBDEFB", "#0D47A1"),
@@ -420,13 +504,16 @@ public class MainViewModel : INotifyPropertyChanged
                 .Where(p => p.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
                 .Select(p =>
                 {
-                    var entry = p.DiaryEntries.First(e => e.Date.Date == date && selector(e));
+                    var entry   = p.DiaryEntries.First(e => e.Date.Date == date && selector(e));
+                    var areaName = Areas.FirstOrDefault(a =>
+                        a.PlantPlacements.Any(pp => pp.PlantId == p.Id))?.Name ?? "";
                     return new PlantSummary
                     {
-                        PlantId   = p.Id,
-                        Name      = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
-                        LatinName = p.LatinName,
-                        Notes     = entry.Notes ?? ""
+                        PlantId          = p.Id,
+                        Name             = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
+                        LatinName        = p.LatinName,
+                        Notes            = entry.Notes ?? "",
+                        LocationAreaName = areaName
                     };
                 })
                 .ToList();
@@ -488,6 +575,48 @@ public class MainViewModel : INotifyPropertyChanged
             RefreshPlantOptions();
             SelectedPlant = Plants[idx];
         }
+    }
+
+    private void DuplicatePlant()
+    {
+        if (SelectedPlant == null) return;
+        var copy = new Plant
+        {
+            CommonName    = NextDuplicateName(SelectedPlant.CommonName, Plants.Select(p => p.CommonName)),
+            LatinName     = SelectedPlant.LatinName,
+            Variety       = SelectedPlant.Variety,
+            Emoji         = SelectedPlant.Emoji,
+            DefaultRadius = SelectedPlant.DefaultRadius
+        };
+        Plants.Add(copy);
+        Save();
+        RefreshPlantOptions();
+        SelectedPlant = copy;
+    }
+
+    /// <summary>
+    /// "Tree" → "Tree 2", "Tree 2" → "Tree 3", skipping names that already exist.
+    /// </summary>
+    private static string NextDuplicateName(string sourceName, IEnumerable<string> existingNames)
+    {
+        var match = Regex.Match(sourceName, @"^(.*?)\s+(\d+)$");
+        string basePart;
+        int    nextNum;
+        if (match.Success)
+        {
+            basePart = match.Groups[1].Value;
+            nextNum  = int.Parse(match.Groups[2].Value) + 1;
+        }
+        else
+        {
+            basePart = sourceName;
+            nextNum  = 2;
+        }
+
+        var existing = existingNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string candidate;
+        do { candidate = $"{basePart} {nextNum++}"; } while (existing.Contains(candidate));
+        return candidate;
     }
 
     private void DeletePlant()
@@ -567,21 +696,67 @@ public class MainViewModel : INotifyPropertyChanged
     private void CalendarAddEntry()
     {
         if (!_selectedCalendarDate.HasValue) return;
-        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList())
+        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList(), Areas.ToList())
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
-        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+        SaveCalendarEntry(dialog.SelectedPlants, dialog.Entry);
     }
 
-    private void EditCalendarEntry(Guid plantId)
+    private void EditActivityEntry(string activityName)
     {
         if (!_selectedCalendarDate.HasValue) return;
-        var plant = Plants.FirstOrDefault(p => p.Id == plantId);
-        if (plant == null) return;
-        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList(), plant)
+        var date = _selectedCalendarDate.Value.Date;
+
+        var def = ActivityDefs.FirstOrDefault(d => d.Name == activityName);
+        if (def == default) return;
+
+        var checkedIds = Plants
+            .Where(p => p.DiaryEntries.Any(e => e.Date.Date == date && def.Selector(e)))
+            .Select(p => p.Id)
+            .ToHashSet();
+
+        var dialog = new EditActivityDialog(date, activityName, Plants.ToList(), Areas.ToList(), checkedIds)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
-        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+
+        foreach (var item in dialog.PlantResults)
+        {
+            var plant = Plants.FirstOrDefault(p => p.Id == item.PlantId);
+            if (plant == null) continue;
+
+            var entry = plant.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
+
+            if (item.IsChecked)
+            {
+                if (entry == null)
+                {
+                    entry = new DiaryEntry { Date = date };
+                    plant.DiaryEntries.Add(entry);
+                }
+                SetActivityFlag(entry, activityName, true);
+            }
+            else if (entry != null)
+            {
+                SetActivityFlag(entry, activityName, false);
+                if (!entry.Planting && !entry.Watering && !entry.Fertilizing &&
+                    !entry.Weeding  && !entry.Mulching  && !entry.Pruning)
+                    plant.DiaryEntries.Remove(entry);
+            }
+        }
+        Save();
+    }
+
+    private static void SetActivityFlag(DiaryEntry entry, string activityName, bool value)
+    {
+        switch (activityName)
+        {
+            case "Planting":    entry.Planting    = value; break;
+            case "Watering":    entry.Watering    = value; break;
+            case "Fertilizing": entry.Fertilizing = value; break;
+            case "Weeding":     entry.Weeding     = value; break;
+            case "Mulching":    entry.Mulching    = value; break;
+            case "Pruning":     entry.Pruning     = value; break;
+        }
     }
 
     // Called from garden planner double-click
@@ -589,30 +764,43 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var plant = Plants.FirstOrDefault(p => p.Id == plantId);
         if (plant == null) return;
-        var dialog = new CalendarEntryDialog(DateTime.Today, Plants.ToList(), plant)
+        var dialog = new CalendarEntryDialog(DateTime.Today, Plants.ToList(), Areas.ToList(), plant)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
-        SaveCalendarEntry(dialog.SelectedPlant!, dialog.Entry);
+        SaveCalendarEntry(dialog.SelectedPlants, dialog.Entry);
     }
 
-    private void SaveCalendarEntry(Plant plant, DiaryEntry newEntry)
+    private void SaveCalendarEntry(List<Plant> plants, DiaryEntry newEntry)
     {
-        var existing = plant.DiaryEntries.FirstOrDefault(e => e.Date.Date == newEntry.Date.Date);
-        if (existing != null)
+        foreach (var plant in plants)
         {
-            existing.Planting    = newEntry.Planting;
-            existing.Watering    = newEntry.Watering;
-            existing.Fertilizing = newEntry.Fertilizing;
-            existing.Weeding     = newEntry.Weeding;
-            existing.Mulching    = newEntry.Mulching;
-            existing.Pruning     = newEntry.Pruning;
-            existing.Notes       = newEntry.Notes;
+            var existing = plant.DiaryEntries.FirstOrDefault(e => e.Date.Date == newEntry.Date.Date);
+            if (existing != null)
+            {
+                existing.Planting    = newEntry.Planting;
+                existing.Watering    = newEntry.Watering;
+                existing.Fertilizing = newEntry.Fertilizing;
+                existing.Weeding     = newEntry.Weeding;
+                existing.Mulching    = newEntry.Mulching;
+                existing.Pruning     = newEntry.Pruning;
+                existing.Notes       = newEntry.Notes;
+            }
+            else
+            {
+                plant.DiaryEntries.Add(new DiaryEntry
+                {
+                    Date        = newEntry.Date,
+                    Planting    = newEntry.Planting,
+                    Watering    = newEntry.Watering,
+                    Fertilizing = newEntry.Fertilizing,
+                    Weeding     = newEntry.Weeding,
+                    Mulching    = newEntry.Mulching,
+                    Pruning     = newEntry.Pruning,
+                    Notes       = newEntry.Notes
+                });
+            }
+            if (SelectedPlant?.Id == plant.Id) LoadEntries();
         }
-        else
-        {
-            plant.DiaryEntries.Add(newEntry);
-        }
-        if (SelectedPlant?.Id == plant.Id) LoadEntries();
         Save();
     }
 

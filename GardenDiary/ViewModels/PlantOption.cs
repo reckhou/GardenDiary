@@ -8,8 +8,13 @@ public class PlantOption : INotifyPropertyChanged
 {
     private bool _isAvailable = true;
     private string _placedAreaName = "";
+    private Plant _plant;
 
-    public Plant Plant { get; }
+    public Plant Plant
+    {
+        get => _plant;
+        set { _plant = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayText)); }
+    }
 
     public bool IsAvailable
     {
@@ -27,7 +32,7 @@ public class PlantOption : INotifyPropertyChanged
         ? Plant.CommonName
         : $"{Plant.CommonName}  (in {PlacedAreaName})";
 
-    public PlantOption(Plant plant) => Plant = plant;
+    public PlantOption(Plant plant) => _plant = plant;
 
     public event PropertyChangedEventHandler? PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string? name = null)

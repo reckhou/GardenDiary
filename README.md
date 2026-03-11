@@ -15,14 +15,18 @@ A Windows WPF desktop app to track plant care activities in your garden — beca
 
 ### 🌿 Plant Management
 - Track **Common Name**, **Latin Name**, and **Variety** per plant
-- Full CRUD — add, edit, and delete plants
+- Full CRUD — add, edit, duplicate, and delete plants with smart numeric suffixes (Tree → Tree 2 → Tree 3)
 - Per-plant diary with **Planting, Watering, Fertilizing, Weeding, Mulching, Pruning** and free-text notes
+- Assign a **colourful emoji icon** per plant; plants sharing the same emoji get the same background colour
+- Filter plants by **area** using a dropdown; plants sorted alphabetically
+- **Double-click** any plant to edit; selecting a plant shows a **mini location preview** of where it sits in the garden
 
 ### 📅 Calendar View
 - Select any day to see all activities across all plants, colour-coded by activity type
-- **Edit entries directly** from the calendar — each plant row has an Edit button
+- Each activity group has an **Edit** button that opens an activity-level editor — tick/untick any plants for that activity on that day
+- **Add Activity** redesigned: choose date, pick an activity, then select multiple plants at once with search/filter and area grouping
+- Hovering a plant row in the calendar shows a **location preview** mini-map; each row also displays the plant's garden area
 - Notes displayed inline under each plant entry
-- **Add Activity** shortcut on any day
 
 ### 🌤 Weather & Sunrise/Sunset
 - Set your **home location** by clicking on an interactive OpenStreetMap map (WebView2)
@@ -31,11 +35,12 @@ A Windows WPF desktop app to track plant care activities in your garden — beca
 
 ### 🗺 Garden Planner
 - Create named garden **areas** with width × height in cm
-- Place plants as **draggable circles** on a canvas; each plant can only be placed once across all areas
+- Place plants as **draggable circles** on a canvas; the Place Plant list only shows unplaced plants
 - Circles show **common name, latin name, and variety**
+- Draw **rectangle and circle shapes** on the canvas — draggable, colour-customisable (preset swatches + custom colour picker), z-order control
 - **Grid lines** with cm measurements for reference
 - **Zoom** 0.1× – 10× via scroll wheel or buttons; **pan** with middle-mouse drag
-- **Double-click** any plant circle to open Add Activity pre-filled with today's date and existing activities ticked
+- **Double-click** any plant circle to open Add Activity pre-filled with today's date
 - Mouse interaction help strip always visible in the planner
 
 ### 💾 Backup & Restore
@@ -99,10 +104,12 @@ CI runs automatically on every push and pull request via GitHub Actions on `wind
 ```
 GardenDiary/
 ├── Models/            Plant, DiaryEntry, AppSettings, DayWeather,
-│                      DayTaskGroup, PlantSummary, GardenArea, PlantPlacement
-├── ViewModels/        MainViewModel, RelayCommand, PlantOption
+│                      DayTaskGroup, PlantSummary, GardenArea, PlantPlacement, GardenShape
+├── ViewModels/        MainViewModel, RelayCommand, PlantOption, PlantFilterItem
 ├── Views/             PlantEditDialog, DiaryEntryEditDialog, CalendarEntryDialog,
-│                      BackupSettingsDialog, GardenAreaEditDialog, LocationPickerDialog
+│                      EditActivityDialog, BackupSettingsDialog, GardenAreaEditDialog,
+│                      LocationPickerDialog
+├── Helpers/           GardenPreviewHelper
 ├── Services/          DataService, BackupService, WeatherService
 ├── Converters/        StringToBrushConverter
 └── MainWindow.xaml
@@ -135,6 +142,9 @@ GardenDiary.Tests/
 | Left-click circle | Select plant |
 | Drag circle | Move plant |
 | Double-click circle | Open Add Activity dialog |
+| Left-click shape | Select shape |
+| Drag shape | Move shape |
+| Right-click shape | Z-order menu (bring to front / send to back) |
 | Middle-mouse drag | Pan canvas |
 | Scroll wheel | Zoom in / out |
 | −  +  ↺ buttons | Zoom out / in / reset |
