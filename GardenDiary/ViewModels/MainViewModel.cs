@@ -27,6 +27,7 @@ public class MainViewModel : INotifyPropertyChanged
     private Plant? _plantToPlace;
     private PlantOption? _selectedPlantOption;
     private PlantPlacement? _selectedPlacement;
+    private GardenShape? _selectedShape;
 
     public ObservableCollection<Plant> Plants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
@@ -148,6 +149,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             _selectedArea = value;
             SelectedPlacement = null;
+            SelectedShape = null;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedAreaTitle));
             OnPropertyChanged(nameof(HasSelectedArea));
@@ -233,6 +235,25 @@ public class MainViewModel : INotifyPropertyChanged
 
     public bool HasSelectedPlacement => _selectedPlacement != null;
 
+    // ── Shapes ──────────────────────────────────────────────────────────────
+
+    public GardenShape? SelectedShape
+    {
+        get => _selectedShape;
+        set
+        {
+            _selectedShape = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasSelectedShape));
+            OnPropertyChanged(nameof(SelectedShapeLabel));
+        }
+    }
+
+    public bool HasSelectedShape => _selectedShape != null;
+
+    public string SelectedShapeLabel => _selectedShape == null
+        ? "" : $"{_selectedShape.Type}  {_selectedShape.Width:F0}×{_selectedShape.Height:F0} cm";
+
     // Raised when the canvas must be redrawn
     public event Action? CanvasRefreshRequested;
 
@@ -254,6 +275,11 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeletePlacementCommand { get; }
     public RelayCommand RestoreBackupCommand { get; }
     public RelayCommand SetHomeLocationCommand { get; }
+    public RelayCommand AddRectangleCommand { get; }
+    public RelayCommand AddCircleCommand { get; }
+    public RelayCommand DeleteShapeCommand { get; }
+    public RelayCommand BringShapeToFrontCommand { get; }
+    public RelayCommand SendShapeToBackCommand { get; }
 
     public MainViewModel()
     {
@@ -275,6 +301,11 @@ public class MainViewModel : INotifyPropertyChanged
         DeletePlacementCommand  = new RelayCommand(_ => DeletePlacement(), _ => SelectedPlacement != null);
         RestoreBackupCommand    = new RelayCommand(_ => RestoreBackup());
         SetHomeLocationCommand  = new RelayCommand(_ => SetHomeLocation());
+        AddRectangleCommand     = new RelayCommand(_ => AddShape(ShapeType.Rectangle), _ => SelectedArea != null);
+        AddCircleCommand        = new RelayCommand(_ => AddShape(ShapeType.Circle),    _ => SelectedArea != null);
+        DeleteShapeCommand      = new RelayCommand(_ => DeleteShape(),       _ => SelectedShape != null);
+        BringShapeToFrontCommand = new RelayCommand(_ => BringShapeToFront(), _ => SelectedShape != null);
+        SendShapeToBackCommand  = new RelayCommand(_ => SendShapeToBack(),   _ => SelectedShape != null);
 
         LoadPlants();
         LoadAreas();
@@ -430,6 +461,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             Plants.Add(dialog.Plant);
             Save();
+            RefreshPlantOptions();
             SelectedPlant = dialog.Plant;
         }
     }
@@ -443,6 +475,7 @@ public class MainViewModel : INotifyPropertyChanged
             CommonName    = SelectedPlant.CommonName,
             LatinName     = SelectedPlant.LatinName,
             Variety       = SelectedPlant.Variety,
+            Emoji         = SelectedPlant.Emoji,
             DefaultRadius = SelectedPlant.DefaultRadius,
             DiaryEntries  = SelectedPlant.DiaryEntries
         };
@@ -452,6 +485,7 @@ public class MainViewModel : INotifyPropertyChanged
             var idx = Plants.IndexOf(SelectedPlant);
             Plants[idx] = dialog.Plant;
             Save();
+            RefreshPlantOptions();
             SelectedPlant = Plants[idx];
         }
     }
@@ -604,7 +638,8 @@ public class MainViewModel : INotifyPropertyChanged
             Name            = SelectedArea.Name,
             Width           = SelectedArea.Width,
             Height          = SelectedArea.Height,
-            PlantPlacements = SelectedArea.PlantPlacements
+            PlantPlacements = SelectedArea.PlantPlacements,
+            Shapes          = SelectedArea.Shapes
         };
         var dialog = new GardenAreaEditDialog(copy) { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() == true)
@@ -658,6 +693,57 @@ public class MainViewModel : INotifyPropertyChanged
         SaveAreas();
         RefreshPlantOptions();
         return placement;
+    }
+
+    // ── Shapes ──────────────────────────────────────────────────────────────
+
+    private void AddShape(ShapeType type)
+    {
+        if (SelectedArea == null) return;
+        var maxZ = SelectedArea.Shapes.Count > 0
+            ? SelectedArea.Shapes.Max(s => s.ZIndex) + 1 : 0;
+        var shape = new GardenShape
+        {
+            Type   = type,
+            X      = Math.Min(100, SelectedArea.Width  / 2),
+            Y      = Math.Min(100, SelectedArea.Height / 2),
+            Width  = type == ShapeType.Circle ? 80 : 100,
+            Height = type == ShapeType.Circle ? 80 : 60,
+            ZIndex = maxZ
+        };
+        SelectedArea.Shapes.Add(shape);
+        SaveAreas();
+        SelectedShape = shape;
+        CanvasRefreshRequested?.Invoke();
+    }
+
+    private void DeleteShape()
+    {
+        if (SelectedArea == null || SelectedShape == null) return;
+        SelectedArea.Shapes.Remove(SelectedShape);
+        SelectedShape = null;
+        SaveAreas();
+        CanvasRefreshRequested?.Invoke();
+    }
+
+    private void BringShapeToFront()
+    {
+        if (SelectedArea == null || SelectedShape == null) return;
+        var maxZ = SelectedArea.Shapes.Max(s => s.ZIndex);
+        if (SelectedShape.ZIndex >= maxZ) return;
+        SelectedShape.ZIndex = maxZ + 1;
+        SaveAreas();
+        CanvasRefreshRequested?.Invoke();
+    }
+
+    private void SendShapeToBack()
+    {
+        if (SelectedArea == null || SelectedShape == null) return;
+        var minZ = SelectedArea.Shapes.Min(s => s.ZIndex);
+        if (SelectedShape.ZIndex <= minZ) return;
+        SelectedShape.ZIndex = minZ - 1;
+        SaveAreas();
+        CanvasRefreshRequested?.Invoke();
     }
 
     // ── Weather ───────────────────────────────────────────────────────────────
@@ -811,6 +897,6 @@ public class MainViewModel : INotifyPropertyChanged
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
-    protected void OnPropertyChanged([CallerMemberName] string? name = null)
+    public void OnPropertyChanged([CallerMemberName] string? name = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

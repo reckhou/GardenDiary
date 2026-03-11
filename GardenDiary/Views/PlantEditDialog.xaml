@@ -1,11 +1,13 @@
 <Window x:Class="GardenDiary.Views.PlantEditDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Plant Details" Height="230" Width="400"
+        xmlns:emoji="clr-namespace:Emoji.Wpf;assembly=Emoji.Wpf"
+        Title="Plant Details" SizeToContent="Height" Width="400"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -26,7 +28,27 @@
         <Label Grid.Row="2" Grid.Column="0" Content="Variety:" VerticalAlignment="Center"/>
         <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtVariety" Margin="0,4" Padding="4,3"/>
 
-        <StackPanel Grid.Row="4" Grid.ColumnSpan="2" Orientation="Horizontal"
+        <Label Grid.Row="3" Grid.Column="0" Content="Emoji Icon:" VerticalAlignment="Top" Margin="0,6,0,0"/>
+        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,4">
+            <!-- Selected emoji display + clear button -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="3"
+                        MinWidth="40" MinHeight="32" Padding="6,2"
+                        Background="#FAFAFA">
+                    <emoji:TextBlock x:Name="TxtSelectedEmoji" FontSize="20"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Text=""/>
+                </Border>
+                <Button Content="Clear" Margin="8,0,0,0" Padding="8,2"
+                        VerticalAlignment="Center" Click="ClearEmoji_Click"/>
+                <TextBlock Text="Plants with the same icon share a colour."
+                           FontSize="10" Foreground="#999" FontStyle="Italic"
+                           VerticalAlignment="Center" Margin="10,0,0,0"/>
+            </StackPanel>
+            <!-- Emoji picker grid -->
+            <WrapPanel x:Name="EmojiPanel" MaxWidth="260"/></StackPanel>
+
+        <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal"
                     HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="OK" Width="80" Margin="0,0,8,0" Click="OkClick" IsDefault="True"/>
             <Button Content="Cancel" Width="80" IsCancel="True"/>

@@ -14,6 +14,9 @@ using MouseEventArgs = System.Windows.Input.MouseEventArgs;
 using Point = System.Windows.Point;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using VerticalAlignment = System.Windows.VerticalAlignment;
+using MenuItem = System.Windows.Controls.MenuItem;
+using Panel = System.Windows.Controls.Panel;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace GardenDiary;
 
@@ -24,9 +27,15 @@ public partial class MainWindow : Window
     private FrameworkElement? _draggingElement;
     private Point _dragOffset;
 
+    // Shape drag state
+    private GardenShape? _draggingShape;
+    private FrameworkElement? _draggingShapeElement;
+    private Point _shapeDragOffset;
+
     // Keeps references to canvas elements for direct manipulation
     private readonly Dictionary<Guid, Grid>    _placementGrids    = new();
     private readonly Dictionary<Guid, Ellipse> _placementEllipses = new();
+    private readonly Dictionary<Guid, FrameworkElement> _shapeElements = new();
 
     // ── Zoom state ────────────────────────────────────────────────────────────
     private double _zoom = 1.0;
@@ -46,6 +55,25 @@ public partial class MainWindow : Window
         "#AB47BC", "#26A69A", "#D4E157", "#FF7043",
         "#78909C", "#8D6E63"
     ];
+
+    /// <summary>
+    /// Returns the colour hex for a plant. Plants sharing the same non-empty emoji
+    /// get the same colour; others fall back to their index in the plant list.
+    /// </summary>
+    private static string GetPlantColor(Plant plant, List<Plant> plantList)
+    {
+        if (!string.IsNullOrWhiteSpace(plant.Emoji))
+        {
+            var distinctEmojis = plantList
+                .Where(p => !string.IsNullOrWhiteSpace(p.Emoji))
+                .Select(p => p.Emoji)
+                .Distinct()
+                .ToList();
+            var idx = distinctEmojis.IndexOf(plant.Emoji);
+            return PlantPalette[idx % PlantPalette.Length];
+        }
+        return PlantPalette[plantList.IndexOf(plant) % PlantPalette.Length];
+    }
 
     public MainWindow()
     {
@@ -91,8 +119,11 @@ public partial class MainWindow : Window
         GardenCanvas.Children.Clear();
         _placementGrids.Clear();
         _placementEllipses.Clear();
+        _shapeElements.Clear();
         _dragging = null;
         _draggingElement = null;
+        _draggingShape = null;
+        _draggingShapeElement = null;
 
         var vm = DataContext as MainViewModel;
         if (vm?.SelectedArea == null) return;
@@ -144,13 +175,19 @@ public partial class MainWindow : Window
             GardenCanvas.Children.Add(lbl);
         }
 
+        // ── Shapes (drawn below plants, sorted by ZIndex) ────────────────────
+        foreach (var shape in area.Shapes.OrderBy(s => s.ZIndex))
+        {
+            AddShapeToCanvas(shape, vm);
+        }
+
         // ── Plant circles ─────────────────────────────────────────────────────
         foreach (var placement in area.PlantPlacements)
         {
             var plant = plantList.FirstOrDefault(p => p.Id == placement.PlantId);
             if (plant == null) continue;
 
-            var colorHex  = PlantPalette[plantList.IndexOf(plant) % PlantPalette.Length];
+            var colorHex = GetPlantColor(plant, plantList);
             var fillColor = (Color)ColorConverter.ConvertFromString(colorHex);
             var isSelected = vm.SelectedPlacement?.Id == placement.Id;
 
@@ -165,13 +202,12 @@ public partial class MainWindow : Window
             var ellipse = new Ellipse
             {
                 Fill            = new SolidColorBrush(fillColor) { Opacity = 0.78 },
-                Stroke          = isSelected ? Brushes.White : new SolidColorBrush(fillColor) { Opacity = 0.4 },
-                StrokeThickness = isSelected ? 3 : 1.5,
+                Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.4 },
+                StrokeThickness = isSelected ? 2.5 : 1.5,
                 Width           = placement.Radius * 2,
                 Height          = placement.Radius * 2
             };
 
-            // Two-line label: common name + latin name
             var labelPanel = new StackPanel
             {
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -179,6 +215,16 @@ public partial class MainWindow : Window
                 Width               = placement.Radius * 2 - 6,
                 IsHitTestVisible    = false
             };
+            if (!string.IsNullOrWhiteSpace(plant.Emoji))
+            {
+                labelPanel.Children.Add(new Emoji.Wpf.TextBlock
+                {
+                    Text          = plant.Emoji,
+                    FontSize      = Math.Clamp(placement.Radius * 0.5, 10, 22),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    IsHitTestVisible = false
+                });
+            }
             labelPanel.Children.Add(new TextBlock
             {
                 Text          = plant.CommonName,
@@ -230,6 +276,259 @@ public partial class MainWindow : Window
             _placementGrids[placement.Id]    = grid;
             _placementEllipses[placement.Id] = ellipse;
         }
+
+        // Sync shape color combo if a shape is selected
+        SyncShapeColorCombo();
+    }
+
+    // ── Shapes on canvas ─────────────────────────────────────────────────────
+
+    private void AddShapeToCanvas(GardenShape shape, MainViewModel vm)
+    {
+        var fillColor = (Color)ColorConverter.ConvertFromString(shape.FillColor);
+        var isSelected = vm.SelectedShape?.Id == shape.Id;
+
+        FrameworkElement shapeVisual;
+        if (shape.Type == ShapeType.Circle)
+        {
+            shapeVisual = new Ellipse
+            {
+                Width           = shape.Width,
+                Height          = shape.Height,
+                Fill            = new SolidColorBrush(fillColor) { Opacity = shape.Opacity },
+                Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.6 },
+                StrokeThickness = isSelected ? 2.5 : 1,
+                StrokeDashArray = isSelected ? null : new DoubleCollection([4, 2])
+            };
+        }
+        else
+        {
+            shapeVisual = new Rectangle
+            {
+                Width           = shape.Width,
+                Height          = shape.Height,
+                Fill            = new SolidColorBrush(fillColor) { Opacity = shape.Opacity },
+                Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.6 },
+                StrokeThickness = isSelected ? 2.5 : 1,
+                StrokeDashArray = isSelected ? null : new DoubleCollection([4, 2])
+            };
+        }
+
+        // Wrap in a Grid so we can overlay a label
+        var container = new Grid
+        {
+            Width  = shape.Width,
+            Height = shape.Height,
+            Cursor = Cursors.SizeAll,
+            Tag    = shape.Id
+        };
+        container.Children.Add(shapeVisual);
+
+        if (!string.IsNullOrWhiteSpace(shape.Label))
+        {
+            container.Children.Add(new TextBlock
+            {
+                Text              = shape.Label,
+                FontSize          = Math.Clamp(Math.Min(shape.Width, shape.Height) * 0.18, 8, 14),
+                Foreground        = new SolidColorBrush(Color.FromArgb(180, 0, 0, 0)),
+                FontWeight        = FontWeights.SemiBold,
+                TextWrapping      = TextWrapping.Wrap,
+                TextAlignment     = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment   = VerticalAlignment.Center,
+                IsHitTestVisible  = false,
+                MaxWidth          = shape.Width - 8
+            });
+        }
+
+        Canvas.SetLeft(container, shape.X);
+        Canvas.SetTop(container, shape.Y);
+        Panel.SetZIndex(container, shape.ZIndex);
+
+        container.MouseLeftButtonDown += ShapeElement_MouseLeftButtonDown;
+        container.MouseMove           += ShapeElement_MouseMove;
+        container.MouseLeftButtonUp   += ShapeElement_MouseLeftButtonUp;
+        container.MouseRightButtonUp  += ShapeElement_MouseRightButtonUp;
+
+        GardenCanvas.Children.Add(container);
+        _shapeElements[shape.Id] = container;
+    }
+
+    private void ShapeElement_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement el) return;
+        var vm      = DataContext as MainViewModel;
+        var shapeId = (Guid)el.Tag;
+        var shape   = vm?.SelectedArea?.Shapes.FirstOrDefault(s => s.Id == shapeId);
+        if (shape == null) return;
+
+        var prevShapeId = vm?.SelectedShape?.Id;
+        var prevPlantId = vm?.SelectedPlacement?.Id;
+
+        _draggingShape        = shape;
+        _draggingShapeElement = el;
+        _shapeDragOffset      = new Point(e.GetPosition(GardenCanvas).X - shape.X,
+                                          e.GetPosition(GardenCanvas).Y - shape.Y);
+        el.CaptureMouse();
+
+        // Select this shape, deselect plant — update visuals directly, no canvas rebuild
+        if (vm != null)
+        {
+            vm.SelectedPlacement = null;
+            vm.SelectedShape = shape;
+        }
+        UpdateSelectionRing(prevPlantId, null);
+        UpdateShapeSelectionRing(prevShapeId, shape.Id);
+        SyncShapeColorCombo();
+        e.Handled = true;
+    }
+
+    private void ShapeElement_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (_draggingShape == null || _draggingShapeElement == null) return;
+        if (e.LeftButton != MouseButtonState.Pressed) { StopShapeDrag(); return; }
+
+        var area = (DataContext as MainViewModel)?.SelectedArea;
+        if (area == null) return;
+
+        var pos  = e.GetPosition(GardenCanvas);
+        var newX = Math.Clamp(pos.X - _shapeDragOffset.X, 0, area.Width  - _draggingShape.Width);
+        var newY = Math.Clamp(pos.Y - _shapeDragOffset.Y, 0, area.Height - _draggingShape.Height);
+
+        _draggingShape.X = newX;
+        _draggingShape.Y = newY;
+        Canvas.SetLeft(_draggingShapeElement, newX);
+        Canvas.SetTop(_draggingShapeElement,  newY);
+    }
+
+    private void ShapeElement_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (_draggingShape == null) return;
+        StopShapeDrag();
+    }
+
+    private void StopShapeDrag()
+    {
+        _draggingShapeElement?.ReleaseMouseCapture();
+        _draggingShape        = null;
+        _draggingShapeElement = null;
+        (DataContext as MainViewModel)?.SaveAreas();
+    }
+
+    private void ShapeElement_MouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement el) return;
+        var vm      = DataContext as MainViewModel;
+        var shapeId = (Guid)el.Tag;
+        var shape   = vm?.SelectedArea?.Shapes.FirstOrDefault(s => s.Id == shapeId);
+        if (shape == null || vm == null) return;
+
+        vm.SelectedPlacement = null;
+        vm.SelectedShape = shape;
+
+        var ctx = new ContextMenu();
+
+        var bringFront = new MenuItem { Header = "Bring to Front" };
+        bringFront.Click += (_, _) => { vm.BringShapeToFrontCommand.Execute(null); };
+        ctx.Items.Add(bringFront);
+
+        var sendBack = new MenuItem { Header = "Send to Back" };
+        sendBack.Click += (_, _) => { vm.SendShapeToBackCommand.Execute(null); };
+        ctx.Items.Add(sendBack);
+
+        ctx.Items.Add(new Separator());
+
+        var remove = new MenuItem { Header = "Remove" };
+        remove.Click += (_, _) => { vm.DeleteShapeCommand.Execute(null); };
+        ctx.Items.Add(remove);
+
+        ctx.IsOpen = true;
+        e.Handled = true;
+    }
+
+    // ── Shape property editors ───────────────────────────────────────────────
+
+    private void ShapeField_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.TextBox tb)
+        {
+            var binding = tb.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty);
+            binding?.UpdateSource();
+        }
+        SaveAndRefreshShape();
+    }
+
+    private void ShapeField_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        if (sender is System.Windows.Controls.TextBox tb)
+        {
+            var binding = tb.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty);
+            binding?.UpdateSource();
+        }
+        SaveAndRefreshShape();
+        e.Handled = true;
+    }
+
+    private void SaveAndRefreshShape()
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm?.SelectedShape == null) return;
+        vm.SaveAreas();
+        vm.OnPropertyChanged(nameof(vm.SelectedShapeLabel));
+        RefreshGardenCanvas();
+    }
+
+    private void ShapeColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.ComboBox combo) return;
+        if (combo.SelectedItem is not ComboBoxItem item) return;
+        var vm = DataContext as MainViewModel;
+        if (vm?.SelectedShape == null) return;
+        var hex = item.Tag as string;
+        if (hex == null || hex == vm.SelectedShape.FillColor) return;
+        vm.SelectedShape.FillColor = hex;
+        vm.SaveAreas();
+        RefreshGardenCanvas();
+    }
+
+    private void SyncShapeColorCombo()
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm?.SelectedShape == null) return;
+        foreach (ComboBoxItem item in ShapeColorCombo.Items)
+        {
+            if (item.Tag is string hex && hex == vm.SelectedShape.FillColor)
+            {
+                ShapeColorCombo.SelectedItem = item;
+                return;
+            }
+        }
+    }
+
+    private void UpdateShapeSelectionRing(Guid? deselectedId, Guid? selectedId)
+    {
+        var vm = DataContext as MainViewModel;
+        if (deselectedId.HasValue && _shapeElements.TryGetValue(deselectedId.Value, out var oldEl))
+        {
+            var shape = vm?.SelectedArea?.Shapes.FirstOrDefault(s => s.Id == deselectedId.Value);
+            if (shape != null && oldEl is Grid oldGrid && oldGrid.Children[0] is Shape oldShape)
+            {
+                var col = (Color)ColorConverter.ConvertFromString(shape.FillColor);
+                oldShape.Stroke          = new SolidColorBrush(col) { Opacity = 0.6 };
+                oldShape.StrokeThickness = 1;
+                oldShape.StrokeDashArray = new DoubleCollection([4, 2]);
+            }
+        }
+        if (selectedId.HasValue && _shapeElements.TryGetValue(selectedId.Value, out var newEl))
+        {
+            if (newEl is Grid newGrid && newGrid.Children[0] is Shape newShape)
+            {
+                newShape.Stroke          = Brushes.Black;
+                newShape.StrokeThickness = 2.5;
+                newShape.StrokeDashArray = null;
+            }
+        }
     }
 
     // Update only the selection ring — avoids rebuilding the canvas
@@ -244,7 +543,7 @@ public partial class MainWindow : Window
             if (pl != null)
             {
                 var plant    = plantList.FirstOrDefault(p => p.Id == pl.PlantId);
-                var colorHex = plant != null ? PlantPalette[plantList.IndexOf(plant) % PlantPalette.Length] : "#66BB6A";
+                var colorHex = plant != null ? GetPlantColor(plant, plantList) : "#66BB6A";
                 var col      = (Color)ColorConverter.ConvertFromString(colorHex);
                 oldEllipse.Stroke          = new SolidColorBrush(col) { Opacity = 0.4 };
                 oldEllipse.StrokeThickness = 1.5;
@@ -253,8 +552,8 @@ public partial class MainWindow : Window
 
         if (selectedId.HasValue && _placementEllipses.TryGetValue(selectedId.Value, out var newEllipse))
         {
-            newEllipse.Stroke          = Brushes.White;
-            newEllipse.StrokeThickness = 3;
+            newEllipse.Stroke          = Brushes.Black;
+            newEllipse.StrokeThickness = 2.5;
         }
     }
 
@@ -269,7 +568,6 @@ public partial class MainWindow : Window
         var focusX = viewportFocus?.X ?? sv.ViewportWidth  / 2;
         var focusY = viewportFocus?.Y ?? sv.ViewportHeight / 2;
 
-        // Canvas coordinate under the focus point before zoom
         var canvasX = (sv.HorizontalOffset + focusX) / _zoom;
         var canvasY = (sv.VerticalOffset   + focusY) / _zoom;
 
@@ -298,7 +596,7 @@ public partial class MainWindow : Window
     {
         var factor = e.Delta > 0 ? 1.12 : 1.0 / 1.12;
         ApplyZoom(_zoom * factor, e.GetPosition(GardenScrollViewer));
-        e.Handled = true; // prevent ScrollViewer default vertical scroll
+        e.Handled = true;
     }
 
     // ── Middle-mouse pan ──────────────────────────────────────────────────────
@@ -332,11 +630,27 @@ public partial class MainWindow : Window
 
     // ── Plant placement (canvas click) ────────────────────────────────────────
 
+    private void DeselectAll()
+    {
+        var vm = DataContext as MainViewModel;
+        if (vm == null) return;
+        var oldPlantId = vm.SelectedPlacement?.Id;
+        var oldShapeId = vm.SelectedShape?.Id;
+        vm.SelectedPlacement = null;
+        vm.SelectedShape = null;
+        UpdateSelectionRing(oldPlantId, null);
+        UpdateShapeSelectionRing(oldShapeId, null);
+    }
+
     private void GardenCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource != GardenCanvas) return;
 
         var vm = DataContext as MainViewModel;
+
+        // Deselect everything when clicking empty canvas
+        DeselectAll();
+
         if (vm?.PlantToPlace == null || vm.SelectedArea == null) return;
 
         var pos       = e.GetPosition(GardenCanvas);
@@ -358,7 +672,6 @@ public partial class MainWindow : Window
         var placement   = vm?.SelectedArea?.PlantPlacements.FirstOrDefault(p => p.Id == placementId);
         if (placement == null) return;
 
-        // Double-click → open Add Activity dialog, don't start drag
         if (e.ClickCount == 2)
         {
             StopDrag();
@@ -374,9 +687,15 @@ public partial class MainWindow : Window
 
         el.CaptureMouse();
 
-        var oldId = vm?.SelectedPlacement?.Id;
-        if (vm != null) vm.SelectedPlacement = placement;
-        UpdateSelectionRing(oldId, placement.Id);
+        var oldPlantId = vm?.SelectedPlacement?.Id;
+        var oldShapeId = vm?.SelectedShape?.Id;
+        if (vm != null)
+        {
+            vm.SelectedShape = null;
+            vm.SelectedPlacement = placement;
+        }
+        UpdateShapeSelectionRing(oldShapeId, null);
+        UpdateSelectionRing(oldPlantId, placement.Id);
 
         e.Handled = true;
     }
