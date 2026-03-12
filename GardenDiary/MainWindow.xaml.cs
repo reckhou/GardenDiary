@@ -58,6 +58,9 @@ public partial class MainWindow : Window
         InitializeComponent();
         GardenCanvas.LayoutTransform = _scaleTransform;
 
+        var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+        Title = v == null ? "Garden Diary" : $"Garden Diary v{v.Major}.{v.Minor}.{v.Build}";
+
         if (DataContext is MainViewModel vm)
         {
             vm.PropertyChanged        += OnVmPropertyChanged;
