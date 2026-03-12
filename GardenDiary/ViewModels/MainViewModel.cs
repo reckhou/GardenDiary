@@ -38,6 +38,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<GardenArea> Areas { get; } = new();
     public ObservableCollection<PlantOption> PlantOptions { get; } = new();
     public IEnumerable<PlantOption> UnplacedPlantOptions => PlantOptions.Where(o => o.IsAvailable);
+    public HashSet<DateTime> DaysWithActivities { get; } = new();
     public ObservableCollection<PlantFilterItem> PlantFilterItems { get; } = new();
 
     private PlantFilterItem? _selectedPlantFilter;
@@ -529,6 +530,18 @@ public class MainViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(NoDayTasks));
+        RebuildDaysWithActivities();
+        OnPropertyChanged(nameof(DaysWithActivities));
+    }
+
+    private void RebuildDaysWithActivities()
+    {
+        DaysWithActivities.Clear();
+        foreach (var plant in Plants)
+            foreach (var entry in plant.DiaryEntries)
+                if (entry.Planting || entry.Watering || entry.Fertilizing ||
+                    entry.Weeding  || entry.Mulching  || entry.Pruning)
+                    DaysWithActivities.Add(entry.Date.Date);
     }
 
     private void Save()

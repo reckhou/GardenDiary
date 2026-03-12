@@ -57,11 +57,17 @@
 
                     <!-- Calendar control -->
                     <Border Grid.Column="0" Margin="16" VerticalAlignment="Top">
-                        <Calendar x:Name="Cal"
-                                  SelectionMode="SingleDate"
-                                  IsTodayHighlighted="True"
-                                  Loaded="Cal_Loaded"
-                                  SelectedDatesChanged="Cal_SelectedDatesChanged"/>
+                        <StackPanel>
+                            <Calendar x:Name="Cal"
+                                      SelectionMode="SingleDate"
+                                      IsTodayHighlighted="True"
+                                      Loaded="Cal_Loaded"
+                                      SelectedDatesChanged="Cal_SelectedDatesChanged"
+                                      DisplayDateChanged="Cal_DisplayDateChanged"/>
+                            <Button Content="Today" HorizontalAlignment="Center"
+                                    Margin="0,6,0,0" Padding="20,3"
+                                    Click="TodayBtn_Click"/>
+                        </StackPanel>
                     </Border>
 
                     <!-- Splitter -->
@@ -180,13 +186,15 @@
                             </TextBlock.Style>
                         </TextBlock>
 
-                        <!-- Hover preview panel (docked at bottom) -->
-                        <Border x:Name="DayPreviewBorder" DockPanel.Dock="Bottom" Height="130"
+                        <!-- Location preview panel — always visible to keep layout stable -->
+                        <Border DockPanel.Dock="Bottom" Height="130"
                                 BorderBrush="#DDD" BorderThickness="1" CornerRadius="3"
-                                Margin="0,6,0,0" Visibility="Collapsed">
+                                Margin="0,6,0,0">
                             <DockPanel>
                                 <Border DockPanel.Dock="Top" Background="#F0F4F0" Padding="8,3">
-                                    <TextBlock x:Name="DayPreviewLabel" Text="" FontSize="11" Foreground="#555"/>
+                                    <TextBlock x:Name="DayPreviewLabel"
+                                               Text="Hover a plant to preview its location"
+                                               FontSize="11" Foreground="#AAA" FontStyle="Italic"/>
                                 </Border>
                                 <Canvas x:Name="DayPreviewCanvas" Background="#E8F5E9"
                                         SizeChanged="DayPreviewCanvas_SizeChanged"/>
@@ -229,6 +237,7 @@
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <StackPanel Margin="10,3,0,6"
+                                                                        Background="Transparent"
                                                                         Tag="{Binding PlantId}"
                                                                         MouseEnter="PlantRow_MouseEnter"
                                                                         MouseLeave="PlantRow_MouseLeave">

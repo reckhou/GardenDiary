@@ -1,9 +1,11 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using GardenDiary.Helpers;
 using GardenDiary.Models;
 using GardenDiary.ViewModels;
@@ -97,13 +99,16 @@ public partial class MainWindow : Window
 
     private void PlantRow_MouseLeave(object sender, MouseEventArgs e)
     {
-        DayPreviewBorder.Visibility = Visibility.Collapsed;
+        _hoveredPlantId = Guid.Empty;
         DayPreviewCanvas.Children.Clear();
+        DayPreviewLabel.Text       = "Hover a plant to preview its location";
+        DayPreviewLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+        DayPreviewLabel.FontStyle  = FontStyles.Italic;
     }
 
     private void DayPreviewCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (DayPreviewBorder.Visibility == Visibility.Visible)
+        if (_hoveredPlantId != Guid.Empty)
             ShowDayPreview(_hoveredPlantId);
     }
 
@@ -112,13 +117,20 @@ public partial class MainWindow : Window
         var vm    = DataContext as MainViewModel;
         if (vm == null) return;
         var plant = vm.Plants.FirstOrDefault(p => p.Id == plantId);
-        if (plant == null) { DayPreviewBorder.Visibility = Visibility.Collapsed; return; }
+        var area  = plant == null ? null : vm.Areas.FirstOrDefault(a => a.PlantPlacements.Any(pp => pp.PlantId == plantId));
 
-        var area  = vm.Areas.FirstOrDefault(a => a.PlantPlacements.Any(pp => pp.PlantId == plantId));
-        if (area == null) { DayPreviewBorder.Visibility = Visibility.Collapsed; return; }
+        if (plant == null || area == null)
+        {
+            DayPreviewCanvas.Children.Clear();
+            DayPreviewLabel.Text       = plant == null ? "Hover a plant to preview its location" : "No location assigned";
+            DayPreviewLabel.Foreground = new SolidColorBrush(Color.FromRgb(0xAA, 0xAA, 0xAA));
+            DayPreviewLabel.FontStyle  = FontStyles.Italic;
+            return;
+        }
 
-        DayPreviewBorder.Visibility = Visibility.Visible;
-        DayPreviewLabel.Text        = $"Located in: {area.Name}";
+        DayPreviewLabel.Text       = $"Located in: {area.Name}";
+        DayPreviewLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
+        DayPreviewLabel.FontStyle  = FontStyles.Normal;
         GardenPreviewHelper.Draw(DayPreviewCanvas, plant, area, vm.Plants.ToList());
     }
 
@@ -145,12 +157,55 @@ public partial class MainWindow : Window
     {
         if (sender is Calendar cal)
             cal.SelectedDate = DateTime.Today;
+        HighlightActiveDays();
     }
 
     private void Cal_SelectedDatesChanged(object sender, SelectionChangedEventArgs e)
     {
         if (DataContext is MainViewModel vm && sender is Calendar cal)
             vm.SelectedCalendarDate = cal.SelectedDate;
+        // Calendar internally captures the mouse during selection; release it so the
+        // very next click on any other control reaches its target without being eaten.
+        Mouse.Capture(null);
+    }
+
+    private void Cal_DisplayDateChanged(object sender, CalendarDateChangedEventArgs e)
+        => HighlightActiveDays();
+
+    private void TodayBtn_Click(object sender, RoutedEventArgs e)
+    {
+        Cal.DisplayDate  = DateTime.Today;
+        Cal.SelectedDate = DateTime.Today;
+    }
+
+    private void HighlightActiveDays()
+    {
+        // Defer until after the calendar renders the new month's day buttons
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            var vm = DataContext as MainViewModel;
+            if (vm == null) return;
+            foreach (var btn in FindVisualChildren<CalendarDayButton>(Cal))
+            {
+                if (btn.DataContext is DateTime date && date != default)
+                {
+                    btn.Background = vm.DaysWithActivities.Contains(date.Date)
+                        ? new SolidColorBrush(Color.FromArgb(100, 76, 175, 80))
+                        : null;
+                }
+            }
+        });
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T t) yield return t;
+            foreach (var desc in FindVisualChildren<T>(child))
+                yield return desc;
+        }
     }
 
     // ── Garden canvas ─────────────────────────────────────────────────────────
@@ -161,6 +216,8 @@ public partial class MainWindow : Window
             RefreshGardenCanvas();
         if (e.PropertyName == nameof(MainViewModel.SelectedPlant))
             RefreshPlantLocationCanvas();
+        if (e.PropertyName == nameof(MainViewModel.DaysWithActivities))
+            HighlightActiveDays();
     }
 
     private void GardenCanvas_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -729,8 +786,9 @@ public partial class MainWindow : Window
 
     private void GardenScrollViewer_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        // Commit any pending radius edit whenever the user clicks anywhere in the canvas area
-        TxtPlacementRadius.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
+        // Commit a pending radius edit only when the TextBox was actively being edited
+        if (TxtPlacementRadius.IsKeyboardFocused)
+            TxtPlacementRadius.GetBindingExpression(System.Windows.Controls.TextBox.TextProperty)?.UpdateSource();
 
         if (e.ChangedButton != MouseButton.Middle) return;
         _isPanning        = true;
