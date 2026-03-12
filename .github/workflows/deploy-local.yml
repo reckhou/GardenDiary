@@ -1,7 +1,6 @@
 name: Deploy Local
 
 on:
-  workflow_dispatch:
   workflow_run:
     workflows: ["Release"]
     types:
@@ -9,8 +8,8 @@ on:
 
 jobs:
   deploy:
-    # Run on manual dispatch, or when Release workflow succeeded
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Only run when the Release workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: self-hosted
 
     steps:
