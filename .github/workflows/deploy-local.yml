@@ -1,0 +1,35 @@
+name: Deploy Local
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    # Only run when the Release workflow succeeded
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: self-hosted
+
+    steps:
+      - name: Download and deploy latest release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $dest = "D:\GardenDiaryApp"
+          $zip  = "$env:TEMP\GardenDiary-latest.zip"
+
+          Write-Host "Downloading latest release..."
+          gh release download --latest --pattern "*.zip" --output $zip --repo ${{ github.repository }} --clobber
+
+          Write-Host "Clearing $dest..."
+          if (Test-Path $dest) { Remove-Item "$dest\*" -Recurse -Force }
+          else { New-Item -ItemType Directory -Path $dest | Out-Null }
+
+          Write-Host "Extracting to $dest..."
+          Expand-Archive -Path $zip -DestinationPath $dest -Force
+          Remove-Item $zip -Force
+
+          Write-Host "Done. Deployed to $dest"
