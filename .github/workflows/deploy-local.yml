@@ -23,7 +23,9 @@ jobs:
           $zip  = "$env:TEMP\GardenDiary-latest.zip"
 
           Write-Host "Downloading latest release..."
-          gh release download --latest --pattern "*.zip" --output $zip --repo ${{ github.repository }} --clobber
+          $tag = (gh release list --limit 1 --json tagName --jq '.[0].tagName' --repo ${{ github.repository }}).Trim()
+          Write-Host "Latest tag: $tag"
+          gh release download $tag --pattern "*.zip" --output $zip --repo ${{ github.repository }} --clobber
 
           Write-Host "Clearing $dest..."
           if (Test-Path $dest) { Remove-Item "$dest\*" -Recurse -Force }
