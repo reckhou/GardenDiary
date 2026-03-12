@@ -250,7 +250,7 @@ public class MainViewModel : INotifyPropertyChanged
             _selectedPlacement.Radius = value;
             OnPropertyChanged();
             SaveAreas();
-            CanvasRefreshRequested?.Invoke();
+            PlacementResized?.Invoke(_selectedPlacement.Id, value);
         }
     }
 
@@ -287,6 +287,9 @@ public class MainViewModel : INotifyPropertyChanged
 
     // Raised when the canvas must be redrawn
     public event Action? CanvasRefreshRequested;
+
+    // Raised when only one placement's radius changed — avoids full canvas rebuild
+    public event Action<Guid, double>? PlacementResized;
 
     // ── Commands ──────────────────────────────────────────────────────────────
 
@@ -407,10 +410,10 @@ public class MainViewModel : INotifyPropertyChanged
                 PlantOptions.Add(new PlantOption(plant));
 
         // Update plant reference (handles renames) and availability for all options
+        var plantById = Plants.ToDictionary(p => p.Id);
         foreach (var opt in PlantOptions)
         {
-            var current = Plants.FirstOrDefault(p => p.Id == opt.Plant.Id);
-            if (current != null && !ReferenceEquals(current, opt.Plant))
+            if (plantById.TryGetValue(opt.Plant.Id, out var current) && !ReferenceEquals(current, opt.Plant))
                 opt.Plant = current;
 
             if (placed.TryGetValue(opt.Plant.Id, out var areaName))
@@ -429,9 +432,17 @@ public class MainViewModel : INotifyPropertyChanged
         RefreshPlantFilters();
         RefreshFilteredPlants();
 
-        OnPropertyChanged(nameof(SelectedPlantLocationArea));
-        OnPropertyChanged(nameof(SelectedPlantHasLocation));
-        OnPropertyChanged(nameof(SelectedPlantLocationLabel));
+        // Only notify when selected plant's location has actually changed  (#8)
+        if (_selectedPlant != null)
+        {
+            var newAreaName = placed.TryGetValue(_selectedPlant.Id, out var an) ? an : null;
+            if (newAreaName != SelectedPlantLocationArea?.Name)
+            {
+                OnPropertyChanged(nameof(SelectedPlantLocationArea));
+                OnPropertyChanged(nameof(SelectedPlantHasLocation));
+                OnPropertyChanged(nameof(SelectedPlantLocationLabel));
+            }
+        }
     }
 
     private void RefreshPlantFilters()
@@ -499,15 +510,20 @@ public class MainViewModel : INotifyPropertyChanged
 
         var date = _selectedCalendarDate.Value.Date;
 
+        // Pre-build plant→area map once for all activity loops  (#6)
+        var plantAreaName = new Dictionary<Guid, string>();
+        foreach (var area in Areas)
+            foreach (var pp in area.PlantPlacements)
+                plantAreaName.TryAdd(pp.PlantId, area.Name);
+
         foreach (var (name, selector, bg, fg) in ActivityDefs)
         {
             var plants = Plants
                 .Where(p => p.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
                 .Select(p =>
                 {
-                    var entry   = p.DiaryEntries.First(e => e.Date.Date == date && selector(e));
-                    var areaName = Areas.FirstOrDefault(a =>
-                        a.PlantPlacements.Any(pp => pp.PlantId == p.Id))?.Name ?? "";
+                    var entry    = p.DiaryEntries.First(e => e.Date.Date == date && selector(e));
+                    var areaName = plantAreaName.TryGetValue(p.Id, out var an) ? an : "";
                     return new PlantSummary
                     {
                         PlantId          = p.Id,
@@ -531,20 +547,29 @@ public class MainViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(NoDayTasks));
         RebuildDaysWithActivities();
-        OnPropertyChanged(nameof(DaysWithActivities));
     }
 
     private void RebuildDaysWithActivities()
     {
-        DaysWithActivities.Clear();
+        var newDays = new HashSet<DateTime>();
         foreach (var plant in Plants)
             foreach (var entry in plant.DiaryEntries)
                 if (entry.Planting || entry.Watering || entry.Fertilizing ||
                     entry.Weeding  || entry.Mulching  || entry.Pruning)
-                    DaysWithActivities.Add(entry.Date.Date);
+                    newDays.Add(entry.Date.Date);
+
+        if (newDays.SetEquals(DaysWithActivities)) return;
+
+        DaysWithActivities.Clear();
+        foreach (var d in newDays) DaysWithActivities.Add(d);
+        OnPropertyChanged(nameof(DaysWithActivities));
     }
 
-    private void Save()
+    // Save plant data only — use when diary entries have NOT changed (e.g. plant metadata edits)
+    private void Save() => _dataService.SavePlants(Plants);
+
+    // Save plant data and refresh the calendar view — use when diary entries have changed
+    private void SaveWithCalendarRefresh()
     {
         _dataService.SavePlants(Plants);
         LoadDayTasks();
@@ -648,7 +673,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         Plants.Remove(SelectedPlant);
         SelectedPlant = null;
-        Save();
+        SaveWithCalendarRefresh();
         RefreshPlantOptions();
         CanvasRefreshRequested?.Invoke();
     }
@@ -663,7 +688,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             SelectedPlant.DiaryEntries.Add(dialog.Entry);
             LoadEntries();
-            Save();
+            SaveWithCalendarRefresh();
         }
     }
 
@@ -688,7 +713,7 @@ public class MainViewModel : INotifyPropertyChanged
             var idx = SelectedPlant.DiaryEntries.IndexOf(SelectedEntry);
             SelectedPlant.DiaryEntries[idx] = dialog.Entry;
             LoadEntries();
-            Save();
+            SaveWithCalendarRefresh();
         }
     }
 
@@ -701,7 +726,7 @@ public class MainViewModel : INotifyPropertyChanged
         if (result != System.Windows.MessageBoxResult.Yes) return;
         SelectedPlant.DiaryEntries.Remove(SelectedEntry);
         LoadEntries();
-        Save();
+        SaveWithCalendarRefresh();
     }
 
     // ── Calendar ──────────────────────────────────────────────────────────────
@@ -709,7 +734,7 @@ public class MainViewModel : INotifyPropertyChanged
     private void CalendarAddEntry()
     {
         if (!_selectedCalendarDate.HasValue) return;
-        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants.ToList(), Areas.ToList())
+        var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants, Areas)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
         SaveCalendarEntry(dialog.SelectedPlants, dialog.Entry);
@@ -728,7 +753,7 @@ public class MainViewModel : INotifyPropertyChanged
             .Select(p => p.Id)
             .ToHashSet();
 
-        var dialog = new EditActivityDialog(date, activityName, Plants.ToList(), Areas.ToList(), checkedIds)
+        var dialog = new EditActivityDialog(date, activityName, Plants, Areas, checkedIds)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
 
@@ -756,7 +781,7 @@ public class MainViewModel : INotifyPropertyChanged
                     plant.DiaryEntries.Remove(entry);
             }
         }
-        Save();
+        SaveWithCalendarRefresh();
     }
 
     private static void SetActivityFlag(DiaryEntry entry, string activityName, bool value)
@@ -777,7 +802,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var plant = Plants.FirstOrDefault(p => p.Id == plantId);
         if (plant == null) return;
-        var dialog = new CalendarEntryDialog(DateTime.Today, Plants.ToList(), Areas.ToList(), plant)
+        var dialog = new CalendarEntryDialog(DateTime.Today, Plants, Areas, plant)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
         SaveCalendarEntry(dialog.SelectedPlants, dialog.Entry);
@@ -814,7 +839,7 @@ public class MainViewModel : INotifyPropertyChanged
             }
             if (SelectedPlant?.Id == plant.Id) LoadEntries();
         }
-        Save();
+        SaveWithCalendarRefresh();
     }
 
     // ── Garden Planner ────────────────────────────────────────────────────────

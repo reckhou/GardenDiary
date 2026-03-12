@@ -13,19 +13,37 @@ public class PlantOption : INotifyPropertyChanged
     public Plant Plant
     {
         get => _plant;
-        set { _plant = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayText)); }
+        set
+        {
+            if (ReferenceEquals(_plant, value)) return;
+            _plant = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayText));
+        }
     }
 
     public bool IsAvailable
     {
         get => _isAvailable;
-        set { _isAvailable = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayText)); }
+        set
+        {
+            if (_isAvailable == value) return;
+            _isAvailable = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayText));
+        }
     }
 
     public string PlacedAreaName
     {
         get => _placedAreaName;
-        set { _placedAreaName = value; OnPropertyChanged(); OnPropertyChanged(nameof(DisplayText)); }
+        set
+        {
+            if (_placedAreaName == value) return;
+            _placedAreaName = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayText));
+        }
     }
 
     public string DisplayText => IsAvailable

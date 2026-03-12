@@ -47,8 +47,9 @@ public partial class CalendarEntryDialog : Window
 {
     private List<PlantCheckItem> _allItems = new();
     private List<PlantGroup> _allGroups = new();
-    private readonly List<Plant> _plantList;
-    private readonly List<GardenArea> _areas;
+    private readonly IList<Plant> _plantList;
+    private readonly IList<GardenArea> _areas;
+    private bool _suppressPreview;
 
     // Last interacted plant (drives preview)
     private Plant? _previewPlant;
@@ -57,7 +58,7 @@ public partial class CalendarEntryDialog : Window
     public List<Plant> SelectedPlants { get; private set; } = new();
     public DiaryEntry Entry { get; private set; } = new();
 
-    public CalendarEntryDialog(DateTime date, List<Plant> plants, List<GardenArea> areas, Plant? preselect = null)
+    public CalendarEntryDialog(DateTime date, IList<Plant> plants, IList<GardenArea> areas, Plant? preselect = null)
     {
         InitializeComponent();
 
@@ -115,6 +116,7 @@ public partial class CalendarEntryDialog : Window
     {
         if (e.PropertyName != nameof(PlantCheckItem.IsChecked)) return;
         if (sender is not PlantCheckItem ci) return;
+        if (_suppressPreview) return;
 
         _previewPlant   = ci.Plant;
         _previewChecked = ci.IsChecked;
@@ -177,15 +179,23 @@ public partial class CalendarEntryDialog : Window
 
     private void SelectAll_Click(object sender, RoutedEventArgs e)
     {
+        _suppressPreview = true;
         var visible = (PlantGroupList.ItemsSource as IEnumerable<PlantGroup>) ?? _allGroups;
         foreach (var ci in visible.SelectMany(g => g.Items))
             ci.IsChecked = true;
+        _suppressPreview = false;
+        _previewChecked = true;
+        RefreshPreview();
     }
 
     private void ClearAll_Click(object sender, RoutedEventArgs e)
     {
+        _suppressPreview = true;
         foreach (var ci in _allItems)
             ci.IsChecked = false;
+        _suppressPreview = false;
+        _previewChecked = false;
+        RefreshPreview();
     }
 
     // ── OK / Cancel ───────────────────────────────────────────────────────────

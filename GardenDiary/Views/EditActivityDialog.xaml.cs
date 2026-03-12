@@ -12,18 +12,20 @@ public partial class EditActivityDialog : Window
 {
     private List<PlantCheckItem> _allItems = new();
     private List<PlantGroup>     _allGroups = new();
-    private readonly List<Plant>      _plantList;
-    private readonly List<GardenArea> _areas;
+    private readonly IList<Plant>      _plantList;
+    private readonly IList<GardenArea> _areas;
 
     private Plant? _previewPlant;
     private bool   _previewChecked = true;
+    private bool   _suppressPreview;
 
+    private IReadOnlyList<(Guid PlantId, bool IsChecked)>? _plantResults;
     /// <summary>All items (checked = has activity, unchecked = remove activity).</summary>
     public IReadOnlyList<(Guid PlantId, bool IsChecked)> PlantResults =>
-        _allItems.Select(ci => (ci.Plant.Id, ci.IsChecked)).ToList();
+        _plantResults ??= _allItems.Select(ci => (ci.Plant.Id, ci.IsChecked)).ToList();
 
     public EditActivityDialog(DateTime date, string activityName,
-                              List<Plant> plants, List<GardenArea> areas,
+                              IList<Plant> plants, IList<GardenArea> areas,
                               HashSet<Guid> checkedPlantIds)
     {
         InitializeComponent();
@@ -92,6 +94,8 @@ public partial class EditActivityDialog : Window
     {
         if (e.PropertyName != nameof(PlantCheckItem.IsChecked)) return;
         if (sender is not PlantCheckItem ci) return;
+        if (_suppressPreview) return;
+
         _previewPlant   = ci.Plant;
         _previewChecked = ci.IsChecked;
         RefreshPreview();
@@ -148,13 +152,21 @@ public partial class EditActivityDialog : Window
 
     private void SelectAll_Click(object sender, RoutedEventArgs e)
     {
+        _suppressPreview = true;
         var visible = (PlantGroupList.ItemsSource as IEnumerable<PlantGroup>) ?? _allGroups;
         foreach (var ci in visible.SelectMany(g => g.Items)) ci.IsChecked = true;
+        _suppressPreview = false;
+        _previewChecked = true;
+        RefreshPreview();
     }
 
     private void ClearAll_Click(object sender, RoutedEventArgs e)
     {
+        _suppressPreview = true;
         foreach (var ci in _allItems) ci.IsChecked = false;
+        _suppressPreview = false;
+        _previewChecked = false;
+        RefreshPreview();
     }
 
     private void OkClick(object sender, RoutedEventArgs e) => DialogResult = true;

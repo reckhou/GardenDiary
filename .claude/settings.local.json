@@ -3,7 +3,18 @@
     "allow": [
       "Bash(dotnet build:*)",
       "Bash(\"$GH\" workflow:*)",
-      "Bash(\"$GH\" run:*)"
+      "Bash(\"$GH\" run:*)",
+      "Bash(dotnet add:*)",
+      "Bash(dotnet test:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)",
+      "Bash(jq --version 2>&1; echo \"exit: $?\")"
     ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash E:/ClaudeCode/GardenDiary/.claude/statusline-command.sh"
   }
 }

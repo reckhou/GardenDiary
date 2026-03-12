@@ -19,7 +19,36 @@ public static class GardenPreviewHelper
         "#78909C", "#8D6E63"
     ];
 
-    public static string GetPlantColor(Plant plant, List<Plant> plantList)
+    /// <summary>
+    /// Builds a Guid→colorHex map for all plants in one O(n) pass.
+    /// Use this when coloring multiple placements to avoid O(n) per placement.
+    /// </summary>
+    public static Dictionary<Guid, string> BuildColorMap(IList<Plant> plantList)
+    {
+        var distinctEmojis = plantList
+            .Where(p => !string.IsNullOrWhiteSpace(p.Emoji))
+            .Select(p => p.Emoji!)
+            .Distinct()
+            .ToList();
+
+        var map = new Dictionary<Guid, string>(plantList.Count);
+        for (int i = 0; i < plantList.Count; i++)
+        {
+            var p = plantList[i];
+            if (!string.IsNullOrWhiteSpace(p.Emoji))
+            {
+                var idx = distinctEmojis.IndexOf(p.Emoji);
+                map[p.Id] = PlantPalette[idx % PlantPalette.Length];
+            }
+            else
+            {
+                map[p.Id] = PlantPalette[i % PlantPalette.Length];
+            }
+        }
+        return map;
+    }
+
+    public static string GetPlantColor(Plant plant, IList<Plant> plantList)
     {
         if (!string.IsNullOrWhiteSpace(plant.Emoji))
         {
@@ -39,7 +68,7 @@ public static class GardenPreviewHelper
     /// <paramref name="targetPlant"/> in black (highlighted=true) or red (highlighted=false).
     /// </summary>
     public static void Draw(Canvas canvas, Plant targetPlant, GardenArea area,
-                            List<Plant> allPlants, bool highlighted = true)
+                            IList<Plant> allPlants, bool highlighted = true)
     {
         canvas.Children.Clear();
 
@@ -82,6 +111,7 @@ public static class GardenPreviewHelper
         }
 
         // Plant circles
+        var colorMap    = BuildColorMap(allPlants);
         var targetBrush = highlighted ? Brushes.Black : Brushes.Red;
         foreach (var placement in area.PlantPlacements)
         {
@@ -89,7 +119,7 @@ public static class GardenPreviewHelper
             if (p == null) continue;
 
             var isTarget = p.Id == targetPlant.Id;
-            var colorHex = GetPlantColor(p, allPlants);
+            var colorHex = colorMap.TryGetValue(p.Id, out var c) ? c : "#66BB6A";
             var col      = (Color)ColorConverter.ConvertFromString(colorHex);
             var r        = Math.Max(placement.Radius * scale, isTarget ? 5 : 3);
             var cx       = ox + placement.X * scale;

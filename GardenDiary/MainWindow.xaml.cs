@@ -62,6 +62,7 @@ public partial class MainWindow : Window
         {
             vm.PropertyChanged        += OnVmPropertyChanged;
             vm.CanvasRefreshRequested += RefreshGardenCanvas;
+            vm.PlacementResized       += UpdatePlacementSize;
         }
     }
 
@@ -83,7 +84,7 @@ public partial class MainWindow : Window
         var area  = vm?.SelectedPlantLocationArea;
         var plant = vm?.SelectedPlant;
         if (area == null || plant == null) { PlantLocationCanvas.Children.Clear(); return; }
-        GardenPreviewHelper.Draw(PlantLocationCanvas, plant, area, vm!.Plants.ToList());
+        GardenPreviewHelper.Draw(PlantLocationCanvas, plant, area, vm!.Plants);
     }
 
     // ── Calendar hover preview ────────────────────────────────────────────────
@@ -131,7 +132,7 @@ public partial class MainWindow : Window
         DayPreviewLabel.Text       = $"Located in: {area.Name}";
         DayPreviewLabel.Foreground = new SolidColorBrush(Color.FromRgb(0x55, 0x55, 0x55));
         DayPreviewLabel.FontStyle  = FontStyles.Normal;
-        GardenPreviewHelper.Draw(DayPreviewCanvas, plant, area, vm.Plants.ToList());
+        GardenPreviewHelper.Draw(DayPreviewCanvas, plant, area, vm.Plants);
     }
 
     // ── Placement radius ──────────────────────────────────────────────────────
@@ -240,7 +241,7 @@ public partial class MainWindow : Window
         if (vm?.SelectedArea == null) return;
 
         var area      = vm.SelectedArea;
-        var plantList = vm.Plants.ToList();
+        var plantList = vm.Plants;
 
         GardenCanvas.Width  = area.Width;
         GardenCanvas.Height = area.Height;
@@ -293,95 +294,18 @@ public partial class MainWindow : Window
         }
 
         // ── Plant circles ─────────────────────────────────────────────────────
+        var colorMap = GardenPreviewHelper.BuildColorMap(plantList);
         foreach (var placement in area.PlantPlacements)
         {
             var plant = plantList.FirstOrDefault(p => p.Id == placement.PlantId);
             if (plant == null) continue;
 
-            var colorHex = GardenPreviewHelper.GetPlantColor(plant, plantList);
-            var fillColor = (Color)ColorConverter.ConvertFromString(colorHex);
+            var colorHex   = colorMap.TryGetValue(plant.Id, out var c) ? c : "#66BB6A";
             var isSelected = vm.SelectedPlacement?.Id == placement.Id;
-
-            var grid = new Grid
-            {
-                Width  = placement.Radius * 2,
-                Height = placement.Radius * 2,
-                Cursor = Cursors.SizeAll,
-                Tag    = placement.Id
-            };
-
-            var ellipse = new Ellipse
-            {
-                Fill            = new SolidColorBrush(fillColor) { Opacity = 0.78 },
-                Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.4 },
-                StrokeThickness = isSelected ? 2.5 : 1.5,
-                Width           = placement.Radius * 2,
-                Height          = placement.Radius * 2
-            };
-
-            var labelPanel = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment   = VerticalAlignment.Center,
-                Width               = placement.Radius * 2 - 6,
-                IsHitTestVisible    = false
-            };
-            if (!string.IsNullOrWhiteSpace(plant.Emoji))
-            {
-                labelPanel.Children.Add(new Emoji.Wpf.TextBlock
-                {
-                    Text          = plant.Emoji,
-                    FontSize      = Math.Clamp(placement.Radius * 0.5, 10, 22),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    IsHitTestVisible = false
-                });
-            }
-            labelPanel.Children.Add(new TextBlock
-            {
-                Text          = plant.CommonName,
-                FontSize      = Math.Clamp(placement.Radius * 0.38, 7, 13),
-                Foreground    = Brushes.White,
-                FontWeight    = FontWeights.SemiBold,
-                TextWrapping  = TextWrapping.Wrap,
-                TextAlignment = TextAlignment.Center,
-                IsHitTestVisible = false
-            });
-            if (!string.IsNullOrWhiteSpace(plant.LatinName))
-            {
-                labelPanel.Children.Add(new TextBlock
-                {
-                    Text          = plant.LatinName,
-                    FontSize      = Math.Clamp(placement.Radius * 0.28, 6, 10),
-                    Foreground    = new SolidColorBrush(Colors.White) { Opacity = 0.82 },
-                    FontStyle     = FontStyles.Italic,
-                    TextWrapping  = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Center,
-                    IsHitTestVisible = false
-                });
-            }
-            if (!string.IsNullOrWhiteSpace(plant.Variety))
-            {
-                labelPanel.Children.Add(new TextBlock
-                {
-                    Text          = plant.Variety,
-                    FontSize      = Math.Clamp(placement.Radius * 0.26, 6, 9),
-                    Foreground    = new SolidColorBrush(Colors.White) { Opacity = 0.70 },
-                    TextWrapping  = TextWrapping.Wrap,
-                    TextAlignment = TextAlignment.Center,
-                    IsHitTestVisible = false
-                });
-            }
-
-            grid.Children.Add(ellipse);
-            grid.Children.Add(labelPanel);
+            var (grid, ellipse) = BuildPlacementGrid(placement, plant, isSelected, colorHex);
 
             Canvas.SetLeft(grid, placement.X - placement.Radius);
             Canvas.SetTop(grid,  placement.Y - placement.Radius);
-
-            grid.MouseLeftButtonDown += PlantPanel_MouseLeftButtonDown;
-            grid.MouseMove           += PlantPanel_MouseMove;
-            grid.MouseLeftButtonUp   += PlantPanel_MouseLeftButtonUp;
-
             GardenCanvas.Children.Add(grid);
 
             _placementGrids[placement.Id]    = grid;
@@ -390,6 +314,124 @@ public partial class MainWindow : Window
 
         // Sync shape color combo if a shape is selected
         SyncColorPreview();
+    }
+
+    private (Grid grid, Ellipse ellipse) BuildPlacementGrid(
+        PlantPlacement placement, Plant plant, bool isSelected, string colorHex)
+    {
+        var fillColor = (Color)ColorConverter.ConvertFromString(colorHex);
+        var r = placement.Radius;
+
+        var grid = new Grid
+        {
+            Width  = r * 2,
+            Height = r * 2,
+            Cursor = Cursors.SizeAll,
+            Tag    = placement.Id
+        };
+
+        var ellipse = new Ellipse
+        {
+            Fill            = new SolidColorBrush(fillColor) { Opacity = 0.78 },
+            Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.4 },
+            StrokeThickness = isSelected ? 2.5 : 1.5,
+            Width           = r * 2,
+            Height          = r * 2
+        };
+
+        var labelPanel = new StackPanel
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment   = VerticalAlignment.Center,
+            Width               = r * 2 - 6,
+            IsHitTestVisible    = false
+        };
+        if (!string.IsNullOrWhiteSpace(plant.Emoji))
+        {
+            labelPanel.Children.Add(new Emoji.Wpf.TextBlock
+            {
+                Text                = plant.Emoji,
+                FontSize            = Math.Clamp(r * 0.5, 10, 22),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                IsHitTestVisible    = false
+            });
+        }
+        labelPanel.Children.Add(new TextBlock
+        {
+            Text             = plant.CommonName,
+            FontSize         = Math.Clamp(r * 0.38, 7, 13),
+            Foreground       = Brushes.White,
+            FontWeight       = FontWeights.SemiBold,
+            TextWrapping     = TextWrapping.Wrap,
+            TextAlignment    = TextAlignment.Center,
+            IsHitTestVisible = false
+        });
+        if (!string.IsNullOrWhiteSpace(plant.LatinName))
+        {
+            labelPanel.Children.Add(new TextBlock
+            {
+                Text             = plant.LatinName,
+                FontSize         = Math.Clamp(r * 0.28, 6, 10),
+                Foreground       = new SolidColorBrush(Colors.White) { Opacity = 0.82 },
+                FontStyle        = FontStyles.Italic,
+                TextWrapping     = TextWrapping.Wrap,
+                TextAlignment    = TextAlignment.Center,
+                IsHitTestVisible = false
+            });
+        }
+        if (!string.IsNullOrWhiteSpace(plant.Variety))
+        {
+            labelPanel.Children.Add(new TextBlock
+            {
+                Text             = plant.Variety,
+                FontSize         = Math.Clamp(r * 0.26, 6, 9),
+                Foreground       = new SolidColorBrush(Colors.White) { Opacity = 0.70 },
+                TextWrapping     = TextWrapping.Wrap,
+                TextAlignment    = TextAlignment.Center,
+                IsHitTestVisible = false
+            });
+        }
+
+        grid.Children.Add(ellipse);
+        grid.Children.Add(labelPanel);
+
+        grid.MouseLeftButtonDown += PlantPanel_MouseLeftButtonDown;
+        grid.MouseMove           += PlantPanel_MouseMove;
+        grid.MouseLeftButtonUp   += PlantPanel_MouseLeftButtonUp;
+
+        return (grid, ellipse);
+    }
+
+    // Replaces only the resized placement element — avoids full canvas rebuild
+    private void UpdatePlacementSize(Guid placementId, double newRadius)
+    {
+        var vm        = DataContext as MainViewModel;
+        var area      = vm?.SelectedArea;
+        var placement = area?.PlantPlacements.FirstOrDefault(p => p.Id == placementId);
+        if (placement == null) return;
+
+        var plantList = vm!.Plants;
+        var plant     = plantList.FirstOrDefault(p => p.Id == placement.PlantId);
+        if (plant == null) return;
+
+        // Remove old element
+        if (_placementGrids.TryGetValue(placementId, out var oldGrid))
+            GardenCanvas.Children.Remove(oldGrid);
+        _placementGrids.Remove(placementId);
+        _placementEllipses.Remove(placementId);
+
+        // Build and insert replacement
+        var colorMap   = GardenPreviewHelper.BuildColorMap(plantList);
+        var colorHex   = colorMap.TryGetValue(plant.Id, out var c) ? c : "#66BB6A";
+        var isSelected = vm.SelectedPlacement?.Id == placementId;
+        var (grid, ellipse) = BuildPlacementGrid(placement, plant, isSelected, colorHex);
+
+        Canvas.SetLeft(grid, placement.X - placement.Radius);
+        Canvas.SetTop(grid,  placement.Y - placement.Radius);
+        GardenCanvas.Children.Add(grid);
+
+        _placementGrids[placementId]    = grid;
+        _placementEllipses[placementId] = ellipse;
     }
 
     // ── Shapes on canvas ─────────────────────────────────────────────────────
@@ -718,7 +760,7 @@ public partial class MainWindow : Window
     private void UpdateSelectionRing(Guid? deselectedId, Guid? selectedId)
     {
         var vm        = DataContext as MainViewModel;
-        var plantList = vm?.Plants.ToList() ?? [];
+        IList<Plant> plantList = vm?.Plants ?? [];
 
         if (deselectedId.HasValue && _placementEllipses.TryGetValue(deselectedId.Value, out var oldEllipse))
         {
