@@ -5,6 +5,7 @@
         xmlns:conv="clr-namespace:GardenDiary.Converters"
         xmlns:emoji="clr-namespace:Emoji.Wpf;assembly=Emoji.Wpf"
         Title="Garden Diary" Height="700" Width="1100"
+        Icon="app.ico"
         WindowStartupLocation="CenterScreen">
     <Window.DataContext>
         <vm:MainViewModel/>
