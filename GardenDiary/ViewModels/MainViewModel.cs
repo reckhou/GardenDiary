@@ -35,6 +35,7 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<Plant> FilteredPlants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
+    public ObservableCollection<AreaTaskGroup> DayAreaTasks { get; } = new();
     public ObservableCollection<GardenArea> Areas { get; } = new();
     public ObservableCollection<PlantOption> PlantOptions { get; } = new();
     public IEnumerable<PlantOption> UnplacedPlantOptions => PlantOptions.Where(o => o.IsAvailable);
@@ -107,6 +108,8 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(DayTasksTitle));
             OnPropertyChanged(nameof(NoDayTasks));
+            OnPropertyChanged(nameof(NoDayAreaTasks));
+            OnPropertyChanged(nameof(NoDayContent));
             LoadDayTasks();
             _ = LoadWeatherAsync();
         }
@@ -116,7 +119,9 @@ public class MainViewModel : INotifyPropertyChanged
         ? _selectedCalendarDate.Value.ToString("dddd, MMMM d, yyyy")
         : "Select a day on the calendar";
 
-    public bool NoDayTasks => DayTasks.Count == 0;
+    public bool NoDayTasks    => DayTasks.Count == 0;
+    public bool NoDayAreaTasks => DayAreaTasks.Count == 0;
+    public bool NoDayContent  => DayTasks.Count == 0 && DayAreaTasks.Count == 0;
 
     // ── Weather ───────────────────────────────────────────────────────────────
 
@@ -315,6 +320,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteShapeCommand { get; }
     public RelayCommand BringShapeToFrontCommand { get; }
     public RelayCommand SendShapeToBackCommand { get; }
+    public RelayCommand CalendarAddAreaEntryCommand  { get; }
+    public RelayCommand EditCalendarAreaEntryCommand { get; }
 
     public MainViewModel()
     {
@@ -342,6 +349,8 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteShapeCommand      = new RelayCommand(_ => DeleteShape(),       _ => SelectedShape != null);
         BringShapeToFrontCommand = new RelayCommand(_ => BringShapeToFront(), _ => SelectedShape != null);
         SendShapeToBackCommand  = new RelayCommand(_ => SendShapeToBack(),   _ => SelectedShape != null);
+        CalendarAddAreaEntryCommand  = new RelayCommand(_ => CalendarAddAreaEntry(), _ => SelectedCalendarDate.HasValue);
+        EditCalendarAreaEntryCommand = new RelayCommand(obj => { if (obj is string name) EditAreaActivity(name); });
 
         LoadPlants();
         LoadAreas();
@@ -503,9 +512,19 @@ public class MainViewModel : INotifyPropertyChanged
         ("Pruning",     e => e.Pruning,     "#E1BEE7", "#4A148C"),
     };
 
+    internal static readonly (string Name, Func<AreaDiaryEntry, bool> Selector, string Bg, string Fg)[] AreaActivityDefs =
+    {
+        ("Mowing",      e => e.Mowing,      "#DCEDC8", "#33691E"),
+        ("Watering",    e => e.Watering,    "#B3E5FC", "#01579B"),
+        ("Overseeding", e => e.Overseeding, "#F9FBE7", "#827717"),
+        ("Feeding",     e => e.Feeding,     "#FFE0B2", "#E65100"),
+        ("Aerating",    e => e.Aerating,    "#D7CCC8", "#4E342E"),
+    };
+
     private void LoadDayTasks()
     {
         DayTasks.Clear();
+        DayAreaTasks.Clear();
         if (!_selectedCalendarDate.HasValue) return;
 
         var date = _selectedCalendarDate.Value.Date;
@@ -545,7 +564,23 @@ public class MainViewModel : INotifyPropertyChanged
                 });
         }
 
+        foreach (var (name, selector, bg, fg) in AreaActivityDefs)
+        {
+            var areaSummaries = Areas
+                .Where(a => a.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
+                .Select(a =>
+                {
+                    var entry = a.DiaryEntries.First(e => e.Date.Date == date && selector(e));
+                    return new AreaSummary { AreaId = a.Id, Name = a.Name, Notes = entry.Notes ?? "" };
+                })
+                .ToList();
+            if (areaSummaries.Count > 0)
+                DayAreaTasks.Add(new AreaTaskGroup { ActivityName = name, BadgeBackground = bg, BadgeForeground = fg, Areas = areaSummaries });
+        }
+
         OnPropertyChanged(nameof(NoDayTasks));
+        OnPropertyChanged(nameof(NoDayAreaTasks));
+        OnPropertyChanged(nameof(NoDayContent));
         RebuildDaysWithActivities();
     }
 
@@ -556,6 +591,11 @@ public class MainViewModel : INotifyPropertyChanged
             foreach (var entry in plant.DiaryEntries)
                 if (entry.Planting || entry.Watering || entry.Fertilizing ||
                     entry.Weeding  || entry.Mulching  || entry.Pruning)
+                    newDays.Add(entry.Date.Date);
+
+        foreach (var area in Areas)
+            foreach (var entry in area.DiaryEntries)
+                if (entry.Mowing || entry.Watering || entry.Overseeding || entry.Feeding || entry.Aerating)
                     newDays.Add(entry.Date.Date);
 
         if (newDays.SetEquals(DaysWithActivities)) return;
@@ -794,6 +834,100 @@ public class MainViewModel : INotifyPropertyChanged
             case "Weeding":     entry.Weeding     = value; break;
             case "Mulching":    entry.Mulching    = value; break;
             case "Pruning":     entry.Pruning     = value; break;
+        }
+    }
+
+    // ── Lawn (Area) Calendar ─────────────────────────────────────────────────
+
+    private void CalendarAddAreaEntry()
+    {
+        if (!_selectedCalendarDate.HasValue) return;
+        var dialog = new AreaCalendarEntryDialog(_selectedCalendarDate.Value, Areas)
+            { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        SaveAreaCalendarEntry(dialog.SelectedAreas, dialog.Entry);
+    }
+
+    private void SaveAreaCalendarEntry(List<GardenArea> areas, AreaDiaryEntry newEntry)
+    {
+        foreach (var area in areas)
+        {
+            var existing = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == newEntry.Date.Date);
+            if (existing != null)
+            {
+                if (newEntry.Mowing)      existing.Mowing      = true;
+                if (newEntry.Watering)    existing.Watering    = true;
+                if (newEntry.Overseeding) existing.Overseeding = true;
+                if (newEntry.Feeding)     existing.Feeding     = true;
+                if (newEntry.Aerating)    existing.Aerating    = true;
+                if (!string.IsNullOrWhiteSpace(newEntry.Notes)) existing.Notes = newEntry.Notes;
+            }
+            else
+            {
+                area.DiaryEntries.Add(new AreaDiaryEntry
+                {
+                    Date        = newEntry.Date,
+                    Mowing      = newEntry.Mowing,
+                    Watering    = newEntry.Watering,
+                    Overseeding = newEntry.Overseeding,
+                    Feeding     = newEntry.Feeding,
+                    Aerating    = newEntry.Aerating,
+                    Notes       = newEntry.Notes
+                });
+            }
+        }
+        SaveAreas();
+        LoadDayTasks();
+    }
+
+    private void EditAreaActivity(string activityName)
+    {
+        if (!_selectedCalendarDate.HasValue) return;
+        var date = _selectedCalendarDate.Value.Date;
+
+        var def = AreaActivityDefs.FirstOrDefault(d => d.Name == activityName);
+        if (def == default) return;
+
+        var checkedIds = Areas
+            .Where(a => a.DiaryEntries.Any(e => e.Date.Date == date && def.Selector(e)))
+            .Select(a => a.Id)
+            .ToHashSet();
+
+        var dialog = new EditAreaActivityDialog(date, activityName, Areas, checkedIds)
+            { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+
+        foreach (var item in dialog.AreaResults)
+        {
+            var area = Areas.FirstOrDefault(a => a.Id == item.AreaId);
+            if (area == null) continue;
+
+            var entry = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
+            if (item.IsChecked)
+            {
+                if (entry == null) { entry = new AreaDiaryEntry { Date = date }; area.DiaryEntries.Add(entry); }
+                SetAreaActivityFlag(entry, activityName, true);
+            }
+            else if (entry != null)
+            {
+                SetAreaActivityFlag(entry, activityName, false);
+                if (!entry.Mowing && !entry.Watering && !entry.Overseeding && !entry.Feeding && !entry.Aerating)
+                    area.DiaryEntries.Remove(entry);
+            }
+        }
+        SaveAreas();
+        LoadDayTasks();
+    }
+
+    private static void SetAreaActivityFlag(AreaDiaryEntry entry, string activityName, bool value)
+    {
+        switch (activityName)
+        {
+            case "Mowing":      entry.Mowing      = value; break;
+            case "Watering":    entry.Watering    = value; break;
+            case "Overseeding": entry.Overseeding = value; break;
+            case "Feeding":     entry.Feeding     = value; break;
+            case "Aerating":    entry.Aerating    = value; break;
         }
     }
 

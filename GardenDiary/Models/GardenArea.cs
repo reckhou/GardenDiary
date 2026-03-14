@@ -8,4 +8,5 @@ public class GardenArea
     public double Height { get; set; } = 400;
     public List<PlantPlacement> PlantPlacements { get; set; } = new();
     public List<GardenShape> Shapes { get; set; } = new();
+    public List<AreaDiaryEntry> DiaryEntries { get; set; } = new();
 }

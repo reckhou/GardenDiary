@@ -77,11 +77,12 @@
                     <!-- Day task panel -->
                     <DockPanel Grid.Column="2" Margin="16">
 
-                        <!-- Header: date title + Add Activity button -->
+                        <!-- Header: date title + Add Activity + Add Lawn Activity buttons -->
                         <Border DockPanel.Dock="Top" Margin="0,0,0,12">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
@@ -91,6 +92,9 @@
                                 <Button Grid.Column="1" Content="+ Add Activity"
                                         Command="{Binding CalendarAddEntryCommand}"
                                         Padding="8,3"/>
+                                <Button Grid.Column="2" Content="+ Add Lawn Activity"
+                                        Command="{Binding CalendarAddAreaEntryCommand}"
+                                        Padding="8,3" Margin="8,0,0,0"/>
                             </Grid>
                         </Border>
 
@@ -178,7 +182,7 @@
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding NoDayTasks}" Value="True">
+                                        <DataTrigger Binding="{Binding NoDayContent}" Value="True">
                                             <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -203,102 +207,174 @@
 
                         <!-- Task groups -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding DayTasks}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Margin="0,0,0,14"
-                                                BorderBrush="#DDE8DC" BorderThickness="0,0,0,1"
-                                                Padding="0,0,0,10">
-                                            <StackPanel>
+                            <StackPanel>
+                                <!-- Plant activity groups -->
+                                <ItemsControl ItemsSource="{Binding DayTasks}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,14"
+                                                    BorderBrush="#DDE8DC" BorderThickness="0,0,0,1"
+                                                    Padding="0,0,0,10">
+                                                <StackPanel>
 
-                                                <!-- Activity badge + Edit button -->
-                                                <Grid Margin="0,0,0,8">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <Border Grid.Column="0"
-                                                            Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
-                                                            CornerRadius="4" Padding="8,3"
-                                                            HorizontalAlignment="Left">
-                                                        <TextBlock Text="{Binding ActivityName}"
-                                                                   FontWeight="Bold" FontSize="13"
-                                                                   Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
-                                                    </Border>
-                                                    <Button Grid.Column="1" Content="Edit"
-                                                            Padding="6,2" VerticalAlignment="Center"
-                                                            Command="{Binding DataContext.EditCalendarEntryCommand,
-                                                                      RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding ActivityName}"/>
-                                                </Grid>
+                                                    <!-- Activity badge + Edit button -->
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0"
+                                                                Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                                CornerRadius="4" Padding="8,3"
+                                                                HorizontalAlignment="Left">
+                                                            <TextBlock Text="{Binding ActivityName}"
+                                                                       FontWeight="Bold" FontSize="13"
+                                                                       Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
+                                                        </Border>
+                                                        <Button Grid.Column="1" Content="Edit"
+                                                                Padding="6,2" VerticalAlignment="Center"
+                                                                Command="{Binding DataContext.EditCalendarEntryCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding ActivityName}"/>
+                                                    </Grid>
 
-                                                <!-- Plant list with location, latin name, notes -->
-                                                <ItemsControl ItemsSource="{Binding Plants}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <StackPanel Margin="10,3,0,6"
-                                                                        Background="Transparent"
-                                                                        Tag="{Binding PlantId}"
-                                                                        MouseEnter="PlantRow_MouseEnter"
-                                                                        MouseLeave="PlantRow_MouseLeave">
-                                                                <!-- Name row -->
-                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                                    <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
-                                                                    <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                    <!-- Plant list with location, latin name, notes -->
+                                                    <ItemsControl ItemsSource="{Binding Plants}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Margin="10,3,0,6"
+                                                                            Background="Transparent"
+                                                                            Tag="{Binding PlantId}"
+                                                                            MouseEnter="PlantRow_MouseEnter"
+                                                                            MouseLeave="PlantRow_MouseLeave">
+                                                                    <!-- Name row -->
+                                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
+                                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <!-- Location -->
+                                                                    <TextBlock Text="{Binding LocationLabel}"
+                                                                               Foreground="#4CAF50" FontSize="10"
+                                                                               Margin="14,1,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding LocationAreaName}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <!-- Latin name -->
+                                                                    <TextBlock Text="{Binding LatinName}"
+                                                                               FontStyle="Italic" Foreground="#888"
+                                                                               FontSize="11" Margin="14,1,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding LatinName}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <!-- Notes -->
+                                                                    <TextBlock Text="{Binding Notes}"
+                                                                               FontStyle="Italic" Foreground="#666"
+                                                                               FontSize="11" TextWrapping="Wrap"
+                                                                               Margin="14,2,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Notes}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
                                                                 </StackPanel>
-                                                                <!-- Location -->
-                                                                <TextBlock Text="{Binding LocationLabel}"
-                                                                           Foreground="#4CAF50" FontSize="10"
-                                                                           Margin="14,1,0,0">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding LocationAreaName}" Value="">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <!-- Latin name -->
-                                                                <TextBlock Text="{Binding LatinName}"
-                                                                           FontStyle="Italic" Foreground="#888"
-                                                                           FontSize="11" Margin="14,1,0,0">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding LatinName}" Value="">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <!-- Notes -->
-                                                                <TextBlock Text="{Binding Notes}"
-                                                                           FontStyle="Italic" Foreground="#666"
-                                                                           FontSize="11" TextWrapping="Wrap"
-                                                                           Margin="14,2,0,0">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Notes}" Value="">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                            </StackPanel>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
 
-                                            </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Lawn Activities section header -->
+                                <TextBlock Text="🌿 Lawn Activities" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="#388E3C" Margin="0,8,0,4">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding NoDayAreaTasks}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Lawn activity groups -->
+                                <ItemsControl ItemsSource="{Binding DayAreaTasks}" Margin="0,0,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,14" BorderBrush="#DDE8DC" BorderThickness="0,0,0,1" Padding="0,0,0,10">
+                                                <StackPanel>
+                                                    <!-- Activity badge + Edit button -->
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0"
+                                                                Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                                CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                                                            <TextBlock Text="{Binding ActivityName}"
+                                                                       FontWeight="Bold" FontSize="13"
+                                                                       Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
+                                                        </Border>
+                                                        <Button Grid.Column="1" Content="Edit" Padding="6,2" VerticalAlignment="Center"
+                                                                Command="{Binding DataContext.EditCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding ActivityName}"/>
+                                                    </Grid>
+                                                    <!-- Area list -->
+                                                    <ItemsControl ItemsSource="{Binding Areas}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Margin="10,3,0,6">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="🌿  " FontSize="13"/>
+                                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
+                                                                    </StackPanel>
+                                                                    <TextBlock Text="{Binding Notes}" FontStyle="Italic" Foreground="#666"
+                                                                               FontSize="11" TextWrapping="Wrap" Margin="22,2,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Notes}" Value="">
+                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
                 </Grid>
