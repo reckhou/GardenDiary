@@ -31,12 +31,10 @@
             <StackPanel>
                 <TextBlock Text="Activity" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
                 <WrapPanel>
-                    <CheckBox x:Name="ChkPlanting"    Content="Planting"    Margin="0,0,14,4"/>
-                    <CheckBox x:Name="ChkWatering"    Content="Watering"    Margin="0,0,14,4"/>
-                    <CheckBox x:Name="ChkFertilizing" Content="Fertilizing" Margin="0,0,14,4"/>
-                    <CheckBox x:Name="ChkWeeding"     Content="Weeding"     Margin="0,0,14,4"/>
-                    <CheckBox x:Name="ChkMulching"    Content="Mulching"    Margin="0,0,14,4"/>
-                    <CheckBox x:Name="ChkPruning"     Content="Pruning"     Margin="0,0,0,4"/>
+                    <CheckBox x:Name="ChkWatering"    Content="Watering"                  Margin="0,0,14,4"/>
+                    <CheckBox x:Name="ChkFertilizing" Content="Fertilizing &amp; Mulching" Margin="0,0,14,4"/>
+                    <CheckBox x:Name="ChkPruning"     Content="Pruning"                   Margin="0,0,14,4"/>
+                    <CheckBox x:Name="ChkPlanting"    Content="Planting"                  Margin="0,0,0,4"/>
                 </WrapPanel>
             </StackPanel>
         </Border>
@@ -98,14 +96,10 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Plant.CommonName}"
                                                                FontWeight="SemiBold"/>
-                                                    <TextBlock Text="{Binding Plant.Variety}"
-                                                               Foreground="#888" FontSize="11"
-                                                               Margin="4,1,0,0"
-                                                               Visibility="{Binding HasVariety}"/>
-                                                    <TextBlock Text="{Binding Plant.LatinName}"
+                                                    <TextBlock Text="{Binding LatinDisplay}"
                                                                Foreground="#999" FontSize="11"
                                                                FontStyle="Italic" Margin="6,1,0,0"
-                                                               Visibility="{Binding HasLatinName}"/>
+                                                               Visibility="{Binding HasLatinDisplay}"/>
                                                 </StackPanel>
                                             </CheckBox>
                                         </DataTemplate>

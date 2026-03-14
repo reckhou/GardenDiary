@@ -22,6 +22,7 @@ public class MainViewModel : INotifyPropertyChanged
     private DateTime? _selectedCalendarDate;
     private DayWeather? _dayWeather;
     private bool _isLoadingWeather;
+    private bool _showCompletedTasks;
 
     // Garden planner
     private GardenArea? _selectedArea;
@@ -35,12 +36,18 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<Plant> FilteredPlants { get; } = new();
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
-    public ObservableCollection<AreaTaskGroup> DayAreaTasks { get; } = new();
+    public ObservableCollection<AreaSummary> DayAreaTasks { get; } = new();
     public ObservableCollection<GardenArea> Areas { get; } = new();
     public ObservableCollection<PlantOption> PlantOptions { get; } = new();
     public IEnumerable<PlantOption> UnplacedPlantOptions => PlantOptions.Where(o => o.IsAvailable);
     public HashSet<DateTime> DaysWithActivities { get; } = new();
     public ObservableCollection<PlantFilterItem> PlantFilterItems { get; } = new();
+
+    public ObservableCollection<GardenTask>            Tasks               { get; } = new();
+    public ObservableCollection<TaskCardViewModel>     TaskCards           { get; } = new();
+    public ObservableCollection<TaskCardViewModel>     CompletedTaskCards  { get; } = new();
+    public ObservableCollection<ReminderPlantViewModel> PlantReminders { get; } = new();
+    public ObservableCollection<ReminderAreaViewModel>  AreaReminders  { get; } = new();
 
     private PlantFilterItem? _selectedPlantFilter;
     public PlantFilterItem? SelectedPlantFilter
@@ -52,6 +59,20 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             RefreshFilteredPlants();
         }
+    }
+
+    private string _plantSearchText = "";
+    public string PlantSearchText
+    {
+        get => _plantSearchText;
+        set { _plantSearchText = value; OnPropertyChanged(); RefreshFilteredPlants(); }
+    }
+
+    private string _reminderSearchText = "";
+    public string ReminderSearchText
+    {
+        get => _reminderSearchText;
+        set { _reminderSearchText = value; OnPropertyChanged(); RebuildReminders(); }
     }
 
     // ── Plants & Diary ────────────────────────────────────────────────────────
@@ -122,6 +143,15 @@ public class MainViewModel : INotifyPropertyChanged
     public bool NoDayTasks    => DayTasks.Count == 0;
     public bool NoDayAreaTasks => DayAreaTasks.Count == 0;
     public bool NoDayContent  => DayTasks.Count == 0 && DayAreaTasks.Count == 0;
+
+    public bool ShowCompletedTasks
+    {
+        get => _showCompletedTasks;
+        set { if (_showCompletedTasks == value) return; _showCompletedTasks = value; OnPropertyChanged(); RebuildTaskCards(); }
+    }
+    public bool HasNoActiveTasks      => TaskCards.Count == 0;
+    public bool HasCompletedTasks     => CompletedTaskCards.Count > 0;
+    public int  CompletedTaskCount    => CompletedTaskCards.Count;
 
     // ── Weather ───────────────────────────────────────────────────────────────
 
@@ -322,6 +352,11 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand SendShapeToBackCommand { get; }
     public RelayCommand CalendarAddAreaEntryCommand  { get; }
     public RelayCommand EditCalendarAreaEntryCommand { get; }
+    public RelayCommand AddTaskCommand       { get; }
+    public RelayCommand EditTaskCommand      { get; }
+    public RelayCommand DeleteTaskCommand    { get; }
+    public RelayCommand SkipTaskCommand      { get; }
+    public RelayCommand ToggleCompletedCommand { get; }
 
     public MainViewModel()
     {
@@ -350,10 +385,17 @@ public class MainViewModel : INotifyPropertyChanged
         BringShapeToFrontCommand = new RelayCommand(_ => BringShapeToFront(), _ => SelectedShape != null);
         SendShapeToBackCommand  = new RelayCommand(_ => SendShapeToBack(),   _ => SelectedShape != null);
         CalendarAddAreaEntryCommand  = new RelayCommand(_ => CalendarAddAreaEntry(), _ => SelectedCalendarDate.HasValue);
-        EditCalendarAreaEntryCommand = new RelayCommand(obj => { if (obj is string name) EditAreaActivity(name); });
+        EditCalendarAreaEntryCommand = new RelayCommand(obj => { if (obj is Guid id) EditSingleAreaDay(id); });
+        AddTaskCommand       = new RelayCommand(_ => AddTask());
+        EditTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) EditTask(t); });
+        DeleteTaskCommand    = new RelayCommand(obj => { if (obj is GardenTask t) DeleteTask(t); });
+        SkipTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) SkipTask(t); });
+        ToggleCompletedCommand = new RelayCommand(_ => ShowCompletedTasks = !ShowCompletedTasks);
 
         LoadPlants();
         LoadAreas();
+        LoadTasksData();
+        RebuildReminders();
     }
 
     // ── Auto-backup ───────────────────────────────────────────────────────────
@@ -490,6 +532,13 @@ public class MainViewModel : INotifyPropertyChanged
             subset = Plants.Where(p => areaPlantIds.Contains(p.Id));
         }
 
+        var q = _plantSearchText.Trim();
+        if (!string.IsNullOrEmpty(q))
+            subset = subset.Where(p =>
+                p.CommonName.Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
+                (p.LatinName ?? "").Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
+                (p.Variety   ?? "").Contains(q, StringComparison.CurrentCultureIgnoreCase));
+
         foreach (var p in subset.OrderBy(p => p.CommonName, StringComparer.CurrentCultureIgnoreCase))
             FilteredPlants.Add(p);
     }
@@ -504,12 +553,10 @@ public class MainViewModel : INotifyPropertyChanged
 
     internal static readonly (string Name, Func<DiaryEntry, bool> Selector, string Bg, string Fg)[] ActivityDefs =
     {
-        ("Planting",    e => e.Planting,    "#C8E6C9", "#1B5E20"),
-        ("Watering",    e => e.Watering,    "#BBDEFB", "#0D47A1"),
-        ("Fertilizing", e => e.Fertilizing, "#FFE0B2", "#BF360C"),
-        ("Weeding",     e => e.Weeding,     "#D7CCC8", "#3E2723"),
-        ("Mulching",    e => e.Mulching,    "#FFF9C4", "#F57F17"),
-        ("Pruning",     e => e.Pruning,     "#E1BEE7", "#4A148C"),
+        ("Watering",              e => e.Watering,                 "#BBDEFB", "#0D47A1"),
+        ("Fertilizing & Mulching",e => e.Fertilizing || e.Mulching,"#FFE0B2", "#BF360C"),
+        ("Pruning",               e => e.Pruning,                  "#E1BEE7", "#4A148C"),
+        ("Planting",              e => e.Planting,                 "#C8E6C9", "#1B5E20"),
     };
 
     internal static readonly (string Name, Func<AreaDiaryEntry, bool> Selector, string Bg, string Fg)[] AreaActivityDefs =
@@ -535,6 +582,25 @@ public class MainViewModel : INotifyPropertyChanged
             foreach (var pp in area.PlantPlacements)
                 plantAreaName.TryAdd(pp.PlantId, area.Name);
 
+        // Lawn areas first (Feature 1)
+        foreach (var area in Areas)
+        {
+            var entry = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
+            if (entry == null) continue;
+            var acts = AreaActivityDefs
+                .Where(d => d.Selector(entry))
+                .Select(d => d.Name)
+                .ToList();
+            if (acts.Count == 0) continue;
+            DayAreaTasks.Add(new AreaSummary
+            {
+                AreaId     = area.Id,
+                Name       = area.Name,
+                Activities = string.Join(", ", acts),
+                Notes      = entry.Notes ?? ""
+            });
+        }
+
         foreach (var (name, selector, bg, fg) in ActivityDefs)
         {
             var plants = Plants
@@ -546,8 +612,8 @@ public class MainViewModel : INotifyPropertyChanged
                     return new PlantSummary
                     {
                         PlantId          = p.Id,
-                        Name             = string.IsNullOrWhiteSpace(p.Variety) ? p.CommonName : $"{p.CommonName} ({p.Variety})",
-                        LatinName        = p.LatinName,
+                        Name             = FormatPlantDisplayName(p.CommonName, p.LatinName, p.Variety),
+                        LatinName        = "",
                         Notes            = entry.Notes ?? "",
                         LocationAreaName = areaName
                     };
@@ -562,20 +628,6 @@ public class MainViewModel : INotifyPropertyChanged
                     BadgeForeground = fg,
                     Plants          = plants
                 });
-        }
-
-        foreach (var (name, selector, bg, fg) in AreaActivityDefs)
-        {
-            var areaSummaries = Areas
-                .Where(a => a.DiaryEntries.Any(e => e.Date.Date == date && selector(e)))
-                .Select(a =>
-                {
-                    var entry = a.DiaryEntries.First(e => e.Date.Date == date && selector(e));
-                    return new AreaSummary { AreaId = a.Id, Name = a.Name, Notes = entry.Notes ?? "" };
-                })
-                .ToList();
-            if (areaSummaries.Count > 0)
-                DayAreaTasks.Add(new AreaTaskGroup { ActivityName = name, BadgeBackground = bg, BadgeForeground = fg, Areas = areaSummaries });
         }
 
         OnPropertyChanged(nameof(NoDayTasks));
@@ -612,6 +664,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void SaveWithCalendarRefresh()
     {
         _dataService.SavePlants(Plants);
+        CheckTaskCompletion();
+        SaveTasksData();
+        RebuildTaskCards();
+        RebuildReminders();
         LoadDayTasks();
     }
 
@@ -828,12 +884,10 @@ public class MainViewModel : INotifyPropertyChanged
     {
         switch (activityName)
         {
-            case "Planting":    entry.Planting    = value; break;
-            case "Watering":    entry.Watering    = value; break;
-            case "Fertilizing": entry.Fertilizing = value; break;
-            case "Weeding":     entry.Weeding     = value; break;
-            case "Mulching":    entry.Mulching    = value; break;
-            case "Pruning":     entry.Pruning     = value; break;
+            case "Planting":               entry.Planting    = value; break;
+            case "Watering":               entry.Watering    = value; break;
+            case "Fertilizing & Mulching": entry.Fertilizing = value; entry.Mulching = value; break;
+            case "Pruning":                entry.Pruning     = value; break;
         }
     }
 
@@ -877,58 +931,61 @@ public class MainViewModel : INotifyPropertyChanged
             }
         }
         SaveAreas();
+        CheckTaskCompletion();
+        SaveTasksData();
+        RebuildTaskCards();
+        RebuildReminders();
         LoadDayTasks();
     }
 
-    private void EditAreaActivity(string activityName)
+    private void EditSingleAreaDay(Guid areaId)
     {
         if (!_selectedCalendarDate.HasValue) return;
         var date = _selectedCalendarDate.Value.Date;
+        var area = Areas.FirstOrDefault(a => a.Id == areaId);
+        if (area == null) return;
 
-        var def = AreaActivityDefs.FirstOrDefault(d => d.Name == activityName);
-        if (def == default) return;
-
-        var checkedIds = Areas
-            .Where(a => a.DiaryEntries.Any(e => e.Date.Date == date && def.Selector(e)))
-            .Select(a => a.Id)
-            .ToHashSet();
-
-        var dialog = new EditAreaActivityDialog(date, activityName, Areas, checkedIds)
+        var existing = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
+        var dialog = new AreaCalendarEntryDialog(date, area, existing, Areas)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
 
-        foreach (var item in dialog.AreaResults)
+        var entry = dialog.Entry;
+        if (existing != null)
         {
-            var area = Areas.FirstOrDefault(a => a.Id == item.AreaId);
-            if (area == null) continue;
-
-            var entry = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
-            if (item.IsChecked)
-            {
-                if (entry == null) { entry = new AreaDiaryEntry { Date = date }; area.DiaryEntries.Add(entry); }
-                SetAreaActivityFlag(entry, activityName, true);
-            }
-            else if (entry != null)
-            {
-                SetAreaActivityFlag(entry, activityName, false);
-                if (!entry.Mowing && !entry.Watering && !entry.Overseeding && !entry.Feeding && !entry.Aerating)
-                    area.DiaryEntries.Remove(entry);
-            }
+            existing.Mowing      = entry.Mowing;
+            existing.Watering    = entry.Watering;
+            existing.Overseeding = entry.Overseeding;
+            existing.Feeding     = entry.Feeding;
+            existing.Aerating    = entry.Aerating;
+            existing.Notes       = entry.Notes;
+            if (!existing.Mowing && !existing.Watering && !existing.Overseeding &&
+                !existing.Feeding && !existing.Aerating)
+                area.DiaryEntries.Remove(existing);
+        }
+        else
+        {
+            entry.Date = date;
+            area.DiaryEntries.Add(entry);
         }
         SaveAreas();
+        CheckTaskCompletion();
+        SaveTasksData();
+        RebuildTaskCards();
+        RebuildReminders();
         LoadDayTasks();
     }
 
-    private static void SetAreaActivityFlag(AreaDiaryEntry entry, string activityName, bool value)
+    // Called from garden planner double-click → navigate to Plants & Diary tab
+    public void NavigateToPlant(Guid plantId)
     {
-        switch (activityName)
-        {
-            case "Mowing":      entry.Mowing      = value; break;
-            case "Watering":    entry.Watering    = value; break;
-            case "Overseeding": entry.Overseeding = value; break;
-            case "Feeding":     entry.Feeding     = value; break;
-            case "Aerating":    entry.Aerating    = value; break;
-        }
+        // Reset filters so the plant is visible
+        PlantSearchText = "";
+        var allFilter = PlantFilterItems.FirstOrDefault(f => f.AreaId == null);
+        if (allFilter != null) SelectedPlantFilter = allFilter;
+
+        var plant = Plants.FirstOrDefault(p => p.Id == plantId);
+        if (plant != null) SelectedPlant = plant;
     }
 
     // Called from garden planner double-click
@@ -1254,6 +1311,237 @@ public class MainViewModel : INotifyPropertyChanged
                 ? "Backup folder cleared."
                 : $"Backup folder set: {dialog.SelectedPath}";
         }
+    }
+
+    // ── Tasks ──────────────────────────────────────────────────────────────────
+
+    private void LoadTasksData()
+    {
+        Tasks.Clear();
+        foreach (var t in _dataService.LoadTasks())
+            Tasks.Add(t);
+        RebuildTaskCards();
+    }
+
+    private void SaveTasksData() => _dataService.SaveTasks(Tasks);
+
+    private void RebuildTaskCards()
+    {
+        TaskCards.Clear();
+        CompletedTaskCards.Clear();
+        var plantsList = (IReadOnlyList<Plant>)Plants;
+        var areasList  = (IReadOnlyList<GardenArea>)Areas;
+        foreach (var task in Tasks)
+        {
+            var card = new TaskCardViewModel(task, plantsList, areasList);
+            if (task.Status == GardenTaskStatus.Completed)
+                CompletedTaskCards.Add(card);
+            else
+                TaskCards.Add(card);
+        }
+        OnPropertyChanged(nameof(HasNoActiveTasks));
+        OnPropertyChanged(nameof(HasCompletedTasks));
+        OnPropertyChanged(nameof(CompletedTaskCount));
+    }
+
+    private void AddTask()
+    {
+        var dialog = new TaskEditDialog(new GardenTask { ReminderDate = DateTime.Today }, Plants, Areas)
+            { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        Tasks.Add(dialog.Task);
+        SaveTasksData();
+        RebuildTaskCards();
+    }
+
+    private void EditTask(GardenTask task)
+    {
+        var dialog = new TaskEditDialog(task, Plants, Areas) { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        var idx = Tasks.IndexOf(task);
+        if (idx < 0) return;
+        Tasks[idx] = dialog.Task;
+        SaveTasksData();
+        RebuildTaskCards();
+    }
+
+    private void DeleteTask(GardenTask task)
+    {
+        var result = System.Windows.MessageBox.Show(
+            $"Delete task '{task.Title}'?",
+            "Confirm Delete", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+        Tasks.Remove(task);
+        SaveTasksData();
+        RebuildTaskCards();
+    }
+
+    private void SkipTask(GardenTask task)
+    {
+        var result = System.Windows.MessageBox.Show(
+            $"Skip '{task.Title}'? It will be marked as completed without logging any activities.",
+            "Confirm Skip", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+
+        task.Status        = GardenTaskStatus.Completed;
+        task.CompletedDate = DateTime.Today;
+        if (task.IsRepeating)
+        {
+            Tasks.Add(new GardenTask
+            {
+                Title        = task.Title,
+                ReminderDate = DateTime.Today.AddDays(task.RepeatDays),
+                IsLawnTask   = task.IsLawnTask,
+                Activities   = new List<string>(task.Activities),
+                PlantIds     = new List<Guid>(task.PlantIds),
+                AreaIds      = new List<Guid>(task.AreaIds),
+                IsRepeating  = task.IsRepeating,
+                RepeatDays   = task.RepeatDays
+            });
+        }
+        SaveTasksData();
+        RebuildTaskCards();
+    }
+
+    private void CheckTaskCompletion()
+    {
+        var newTasks = new List<GardenTask>();
+        foreach (var task in Tasks.Where(t => t.Status == GardenTaskStatus.Active))
+        {
+            var ids = task.IsLawnTask ? task.AreaIds : task.PlantIds;
+            foreach (var id in ids.Where(id => !task.CompletedItemIds.Contains(id)))
+            {
+                if (ItemSatisfiesTask(id, task))
+                    task.CompletedItemIds.Add(id);
+            }
+            if (ids.Count > 0 && task.CompletedItemIds.Intersect(ids).Count() >= ids.Count)
+            {
+                task.Status        = GardenTaskStatus.Completed;
+                task.CompletedDate = DateTime.Today;
+                if (task.IsRepeating)
+                {
+                    newTasks.Add(new GardenTask
+                    {
+                        Title        = task.Title,
+                        ReminderDate = DateTime.Today.AddDays(task.RepeatDays),
+                        IsLawnTask   = task.IsLawnTask,
+                        Activities   = new List<string>(task.Activities),
+                        PlantIds     = new List<Guid>(task.PlantIds),
+                        AreaIds      = new List<Guid>(task.AreaIds),
+                        IsRepeating  = true,
+                        RepeatDays   = task.RepeatDays
+                    });
+                }
+            }
+        }
+        foreach (var t in newTasks) Tasks.Add(t);
+    }
+
+    private bool ItemSatisfiesTask(Guid id, GardenTask task)
+    {
+        if (task.IsLawnTask)
+        {
+            var area = Areas.FirstOrDefault(a => a.Id == id);
+            if (area == null) return false;
+            return area.DiaryEntries.Any(e =>
+                e.Date.Date >= task.ReminderDate.Date &&
+                task.Activities.All(act => GetAreaActivityFlag(e, act)));
+        }
+        else
+        {
+            var plant = Plants.FirstOrDefault(p => p.Id == id);
+            if (plant == null) return false;
+            return plant.DiaryEntries.Any(e =>
+                e.Date.Date >= task.ReminderDate.Date &&
+                task.Activities.All(act => GetPlantActivityFlag(e, act)));
+        }
+    }
+
+    private static bool GetPlantActivityFlag(DiaryEntry e, string act) => act switch
+    {
+        "Planting"               => e.Planting,
+        "Watering"               => e.Watering,
+        "Fertilizing & Mulching" => e.Fertilizing || e.Mulching,
+        "Pruning"                => e.Pruning,
+        _                        => false
+    };
+
+    private static bool GetAreaActivityFlag(AreaDiaryEntry e, string act) => act switch
+    {
+        "Mowing"      => e.Mowing,
+        "Watering"    => e.Watering,
+        "Overseeding" => e.Overseeding,
+        "Feeding"     => e.Feeding,
+        "Aerating"    => e.Aerating,
+        _             => false
+    };
+
+    // ── Reminders ─────────────────────────────────────────────────────────────
+
+    private static string FormatPlantDisplayName(string commonName, string? latin, string? variety)
+    {
+        var suffix = FormatLatinWithVariety(latin, variety);
+        return string.IsNullOrEmpty(suffix) ? commonName : $"{commonName} ({suffix})";
+    }
+
+    private static string FormatLatinWithVariety(string? latin, string? variety)
+    {
+        var hasLatin   = !string.IsNullOrWhiteSpace(latin);
+        var hasVariety = !string.IsNullOrWhiteSpace(variety);
+        if (hasLatin && hasVariety) return $"{latin} '{variety}'";
+        if (hasLatin)               return latin!;
+        if (hasVariety)             return $"'{variety}'";
+        return "";
+    }
+
+    private void RebuildReminders()
+    {
+        var q = _reminderSearchText.Trim();
+
+        PlantReminders.Clear();
+        foreach (var plant in Plants.OrderBy(p => p.CommonName))
+        {
+            if (plant.DiaryEntries.Count == 0) continue;
+            if (!string.IsNullOrEmpty(q))
+            {
+                bool matches = plant.CommonName.Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
+                               (plant.LatinName ?? "").Contains(q, StringComparison.CurrentCultureIgnoreCase) ||
+                               (plant.Variety   ?? "").Contains(q, StringComparison.CurrentCultureIgnoreCase);
+                if (!matches) continue;
+            }
+            var items = new List<ReminderItemViewModel>();
+            foreach (var (name, selector, bg, fg) in ActivityDefs)
+            {
+                var matching = plant.DiaryEntries.Where(e => selector(e)).ToList();
+                if (matching.Count == 0) continue;
+                var lastDate = matching.Max(e => e.Date);
+                items.Add(new ReminderItemViewModel(name, bg, fg, lastDate));
+            }
+            if (items.Count == 0) continue;
+            var latinDisplay = FormatLatinWithVariety(plant.LatinName, plant.Variety);
+            PlantReminders.Add(new ReminderPlantViewModel(plant.CommonName, latinDisplay, items));
+        }
+
+        AreaReminders.Clear();
+        foreach (var area in Areas.OrderBy(a => a.Name))
+        {
+            if (area.DiaryEntries.Count == 0) continue;
+            if (!string.IsNullOrEmpty(q) && !area.Name.Contains(q, StringComparison.CurrentCultureIgnoreCase))
+                continue;
+            var items = new List<ReminderItemViewModel>();
+            foreach (var (name, selector, bg, fg) in AreaActivityDefs)
+            {
+                var matching = area.DiaryEntries.Where(e => selector(e)).ToList();
+                if (matching.Count == 0) continue;
+                var lastDate = matching.Max(e => e.Date);
+                items.Add(new ReminderItemViewModel(name, bg, fg, lastDate));
+            }
+            if (items.Count == 0) continue;
+            AreaReminders.Add(new ReminderAreaViewModel(area.Name, items));
+        }
+
+        OnPropertyChanged(nameof(PlantReminders));
+        OnPropertyChanged(nameof(AreaReminders));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

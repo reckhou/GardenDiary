@@ -12,6 +12,7 @@
     <Window.Resources>
         <conv:StringToBrushConverter x:Key="StringToBrush"/>
         <DropShadowEffect x:Key="DropShadow" BlurRadius="8" ShadowDepth="2" Opacity="0.18"/>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
     <DockPanel>
@@ -42,7 +43,7 @@
         </StatusBar>
 
         <!-- ===== Tabs ===== -->
-        <TabControl>
+        <TabControl x:Name="MainTabControl">
 
             <!-- ══════════════════════════════════════════════════
                  Tab 1: Calendar (default)
@@ -208,6 +209,60 @@
                         <!-- Task groups -->
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
+                                <!-- Lawn Activities section header (shown first) -->
+                                <TextBlock Text="🌿 Lawn Activities" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="#388E3C" Margin="0,0,0,4">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding NoDayAreaTasks}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Lawn activity rows (one per area) -->
+                                <ItemsControl ItemsSource="{Binding DayAreaTasks}" Margin="0,0,0,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,6" BorderBrush="#DDE8DC" BorderThickness="0,0,0,1" Padding="0,0,0,6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock FontSize="13">
+                                                            <Run Text="🌿  "/>
+                                                            <Run Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                            <Run Text=": "/>
+                                                            <Run Text="{Binding Activities}" Foreground="#388E3C"/>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Notes}" FontStyle="Italic" Foreground="#666"
+                                                                   FontSize="11" TextWrapping="Wrap" Margin="22,2,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Notes}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <Button Grid.Column="1" Content="Edit" Padding="6,2" VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.EditCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding AreaId}"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
                                 <!-- Plant activity groups -->
                                 <ItemsControl ItemsSource="{Binding DayTasks}">
                                     <ItemsControl.ItemTemplate>
@@ -247,7 +302,7 @@
                                                                             Tag="{Binding PlantId}"
                                                                             MouseEnter="PlantRow_MouseEnter"
                                                                             MouseLeave="PlantRow_MouseLeave">
-                                                                    <!-- Name row -->
+                                                                    <!-- Name row (CommonName + latin/variety inline) -->
                                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                                         <TextBlock Text="•  " Foreground="#888" FontSize="13"/>
                                                                         <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
@@ -260,20 +315,6 @@
                                                                             <Style TargetType="TextBlock">
                                                                                 <Style.Triggers>
                                                                                     <DataTrigger Binding="{Binding LocationAreaName}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                    <!-- Latin name -->
-                                                                    <TextBlock Text="{Binding LatinName}"
-                                                                               FontStyle="Italic" Foreground="#888"
-                                                                               FontSize="11" Margin="14,1,0,0">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding LatinName}" Value="">
                                                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
@@ -305,75 +346,6 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-
-                                <!-- Lawn Activities section header -->
-                                <TextBlock Text="🌿 Lawn Activities" FontWeight="SemiBold" FontSize="12"
-                                           Foreground="#388E3C" Margin="0,8,0,4">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding NoDayAreaTasks}" Value="False">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <!-- Lawn activity groups -->
-                                <ItemsControl ItemsSource="{Binding DayAreaTasks}" Margin="0,0,0,0">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Margin="0,0,0,14" BorderBrush="#DDE8DC" BorderThickness="0,0,0,1" Padding="0,0,0,10">
-                                                <StackPanel>
-                                                    <!-- Activity badge + Edit button -->
-                                                    <Grid Margin="0,0,0,8">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Border Grid.Column="0"
-                                                                Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
-                                                                CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                                            <TextBlock Text="{Binding ActivityName}"
-                                                                       FontWeight="Bold" FontSize="13"
-                                                                       Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
-                                                        </Border>
-                                                        <Button Grid.Column="1" Content="Edit" Padding="6,2" VerticalAlignment="Center"
-                                                                Command="{Binding DataContext.EditCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                CommandParameter="{Binding ActivityName}"/>
-                                                    </Grid>
-                                                    <!-- Area list -->
-                                                    <ItemsControl ItemsSource="{Binding Areas}">
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <StackPanel Margin="10,3,0,6">
-                                                                    <StackPanel Orientation="Horizontal">
-                                                                        <TextBlock Text="🌿  " FontSize="13"/>
-                                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold"/>
-                                                                    </StackPanel>
-                                                                    <TextBlock Text="{Binding Notes}" FontStyle="Italic" Foreground="#666"
-                                                                               FontSize="11" TextWrapping="Wrap" Margin="22,2,0,0">
-                                                                        <TextBlock.Style>
-                                                                            <Style TargetType="TextBlock">
-                                                                                <Style.Triggers>
-                                                                                    <DataTrigger Binding="{Binding Notes}" Value="">
-                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                    </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                            </Style>
-                                                                        </TextBlock.Style>
-                                                                    </TextBlock>
-                                                                </StackPanel>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
                             </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
@@ -381,9 +353,374 @@
             </TabItem>
 
             <!-- ══════════════════════════════════════════════════
-                 Tab 2: Plants & Diary
+                 Tab 2: Tasks & Reminders
             ══════════════════════════════════════════════════ -->
-            <TabItem Header="  Plants &amp; Diary  " Height="22" Margin="-2,0,-2,0" VerticalAlignment="Bottom">
+            <TabItem Header="  Tasks &amp; Reminders  ">
+                <DockPanel Margin="16">
+
+                    <!-- Header row -->
+                    <Border DockPanel.Dock="Top" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Tasks" FontSize="15" FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="Show Completed"
+                                    Command="{Binding ToggleCompletedCommand}"
+                                    Padding="8,3" Margin="0,0,8,0"/>
+                            <Button Grid.Column="2" Content="+ Add Task"
+                                    Command="{Binding AddTaskCommand}"
+                                    Padding="8,3"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Empty state for active tasks -->
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="No active tasks. Click '+ Add Task' to create one."
+                               Foreground="#999" FontStyle="Italic" Margin="0,0,0,8"
+                               Visibility="{Binding HasNoActiveTasks, Converter={StaticResource BoolToVis}}"/>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+
+                            <!-- ── Task Cards ── -->
+                            <ItemsControl ItemsSource="{Binding TaskCards}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,10" Padding="0,0,0,10"
+                                                BorderBrush="#DDE8DC" BorderThickness="0,0,0,1">
+                                            <StackPanel>
+
+                                                <!-- Overdue banner -->
+                                                <Border Background="#FFEBEE" Padding="8,4" Margin="0,0,0,6"
+                                                        CornerRadius="3"
+                                                        Visibility="{Binding IsOverdue, Converter={StaticResource BoolToVis}}">
+                                                    <TextBlock Text="{Binding OverdueBadge}"
+                                                               Foreground="#C62828" FontSize="11" FontWeight="SemiBold"/>
+                                                </Border>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Left: task info -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontSize="14" FontWeight="Bold"/>
+                                                        <TextBlock Text="{Binding ReminderDateLabel}"
+                                                                   Foreground="#555" FontSize="11" Margin="0,2,0,0"/>
+
+                                                        <!-- Type badge + activities -->
+                                                        <WrapPanel Margin="0,4,0,4">
+                                                            <Border Background="#E8F5E9" CornerRadius="3" Padding="6,2">
+                                                                <TextBlock Text="{Binding TaskTypeLabel}"
+                                                                           Foreground="#2E7D32" FontSize="11" FontWeight="SemiBold"/>
+                                                            </Border>
+                                                            <TextBlock Text="{Binding RequiredActivitiesLabel}"
+                                                                       Foreground="#777" FontSize="11"
+                                                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                        </WrapPanel>
+
+                                                        <!-- Done items -->
+                                                        <StackPanel Margin="0,2,0,2"
+                                                                    Visibility="{Binding HasDoneItems, Converter={StaticResource BoolToVis}}">
+                                                            <TextBlock Text="Done:" Foreground="#2E7D32"
+                                                                       FontSize="11" FontWeight="SemiBold"/>
+                                                            <ItemsControl ItemsSource="{Binding DoneItems}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Foreground="#2E7D32" FontSize="11"
+                                                                                   Margin="8,1,0,0">
+                                                                            <Run Text="✓ "/><Run Text="{Binding Mode=OneWay}"/>
+                                                                        </TextBlock>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </StackPanel>
+
+                                                        <!-- Pending items (collapsed by default) -->
+                                                        <Expander Margin="0,2,0,2" IsExpanded="False"
+                                                                  Visibility="{Binding HasPendingItems, Converter={StaticResource BoolToVis}}">
+                                                            <Expander.Header>
+                                                                <TextBlock Foreground="#888" FontSize="11" FontWeight="SemiBold">
+                                                                    <Run Text="Pending ("/><Run Text="{Binding PendingItems.Count, Mode=OneWay}"/><Run Text=")"/>
+                                                                </TextBlock>
+                                                            </Expander.Header>
+                                                            <ItemsControl ItemsSource="{Binding PendingItems}" Margin="8,2,0,0">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Foreground="#888" FontSize="11"
+                                                                                   Margin="0,1,0,0">
+                                                                            <Run Text="• "/><Run Text="{Binding Mode=OneWay}"/>
+                                                                        </TextBlock>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </Expander>
+
+                                                        <!-- Completed label -->
+                                                        <TextBlock Text="{Binding CompletedDateLabel}"
+                                                                   Foreground="#388E3C" FontSize="11" Margin="0,2,0,0"
+                                                                   Visibility="{Binding IsCompleted, Converter={StaticResource BoolToVis}}"/>
+                                                    </StackPanel>
+
+                                                    <!-- Right: Edit / Skip / Delete buttons -->
+                                                    <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
+                                                        <Button Content="Edit" Padding="6,2" Margin="0,0,0,4"
+                                                                Command="{Binding DataContext.EditTaskCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Task}"/>
+                                                        <Button Content="Skip" Padding="6,2" Margin="0,0,0,4"
+                                                                Command="{Binding DataContext.SkipTaskCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Task}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsCompleted}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Content="Delete" Padding="6,2"
+                                                                Command="{Binding DataContext.DeleteTaskCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Task}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- ── Completed Tasks (collapsed by default) ── -->
+                            <Expander Margin="0,8,0,4" IsExpanded="False">
+                                <Expander.Style>
+                                    <Style TargetType="Expander">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ShowCompletedTasks}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Expander.Style>
+                                <Expander.Header>
+                                    <TextBlock FontSize="12" FontWeight="SemiBold" Foreground="#666">
+                                        <Run Text="Completed ("/>
+                                        <Run Text="{Binding CompletedTaskCount, Mode=OneWay}"/>
+                                        <Run Text=")"/>
+                                    </TextBlock>
+                                </Expander.Header>
+                                <ItemsControl ItemsSource="{Binding CompletedTaskCards}" Margin="0,6,0,0">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,10" Padding="0,0,0,10"
+                                                    BorderBrush="#DDE8DC" BorderThickness="0,0,0,1"
+                                                    Opacity="0.7">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding Title}"
+                                                                       FontSize="13" FontWeight="Bold"/>
+                                                            <TextBlock Text="{Binding ReminderDateLabel}"
+                                                                       Foreground="#555" FontSize="11" Margin="0,1,0,0"/>
+                                                            <TextBlock Text="{Binding CompletedDateLabel}"
+                                                                       Foreground="#388E3C" FontSize="11" Margin="0,1,0,0"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="8,0,0,0">
+                                                            <Button Content="Delete" Padding="6,2"
+                                                                    Command="{Binding DataContext.DeleteTaskCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding Task}"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Expander>
+
+                            <!-- ── Reminders section ── -->
+                            <Separator Margin="0,8,0,12"/>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Latest Activities" FontSize="14" FontWeight="Bold"
+                                           VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" Width="180" Padding="6,3"
+                                         Text="{Binding ReminderSearchText, UpdateSourceTrigger=PropertyChanged}">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Style.Triggers>
+                                                <Trigger Property="Text" Value="">
+                                                    <Setter Property="Background">
+                                                        <Setter.Value>
+                                                            <VisualBrush AlignmentX="Left" AlignmentY="Center" Stretch="None">
+                                                                <VisualBrush.Visual>
+                                                                    <TextBlock Text="🔍 Search…" Foreground="#AAA"
+                                                                               Margin="6,0,0,0" FontStyle="Italic"/>
+                                                                </VisualBrush.Visual>
+                                                            </VisualBrush>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </Grid>
+
+                            <!-- Lawn areas section (top) -->
+                            <TextBlock Text="Lawn Areas" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#555" Margin="0,0,0,4"/>
+                            <TextBlock Text="No lawn area diary entries recorded yet."
+                                       Foreground="#999" FontStyle="Italic" Margin="0,0,0,8">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AreaReminders.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ItemsControl ItemsSource="{Binding AreaReminders}" Margin="0,0,0,8">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" BorderBrush="#DDD" BorderThickness="1"
+                                                CornerRadius="3" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding AreaName}"
+                                                           FontWeight="Bold" FontSize="13" Margin="0,0,0,4"/>
+                                                <ItemsControl ItemsSource="{Binding Items}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,2,0,2">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="100"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Grid.Column="0"
+                                                                        Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                                        CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                                                    <TextBlock Text="{Binding ActivityName}"
+                                                                               Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
+                                                                               FontSize="11" FontWeight="SemiBold"/>
+                                                                </Border>
+                                                                <TextBlock Grid.Column="1" Text="{Binding LastDateLabel}"
+                                                                           FontSize="11" VerticalAlignment="Center"
+                                                                           Margin="8,0,0,0"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding DaysAgoLabel}"
+                                                                           Foreground="#888" FontSize="11"
+                                                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Plants section -->
+                            <TextBlock Text="Plants" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="#555" Margin="0,0,0,4"/>
+                            <TextBlock Text="No plant diary entries recorded yet."
+                                       Foreground="#999" FontStyle="Italic" Margin="0,0,0,8">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PlantReminders.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ItemsControl ItemsSource="{Binding PlantReminders}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,0,8" BorderBrush="#DDD" BorderThickness="1"
+                                                CornerRadius="3" Padding="8">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding PlantDisplayName}"
+                                                           FontWeight="Bold" FontSize="13" Margin="0,0,0,1"/>
+                                                <TextBlock Text="{Binding LatinName}"
+                                                           FontStyle="Italic" Foreground="#888" FontSize="11" Margin="0,0,0,4">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLatinName}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <ItemsControl ItemsSource="{Binding Items}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid Margin="0,2,0,2">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="100"/>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <Border Grid.Column="0"
+                                                                        Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                                        CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                                                    <TextBlock Text="{Binding ActivityName}"
+                                                                               Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
+                                                                               FontSize="11" FontWeight="SemiBold"/>
+                                                                </Border>
+                                                                <TextBlock Grid.Column="1" Text="{Binding LastDateLabel}"
+                                                                           FontSize="11" VerticalAlignment="Center"
+                                                                           Margin="8,0,0,0"/>
+                                                                <TextBlock Grid.Column="2" Text="{Binding DaysAgoLabel}"
+                                                                           Foreground="#888" FontSize="11"
+                                                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ══════════════════════════════════════════════════
+                 Tab 3: Plants & Diary
+            ══════════════════════════════════════════════════ -->
+            <TabItem x:Name="PlantsTab" Header="  Plants &amp; Diary  " Height="22" Margin="-2,0,-2,0" VerticalAlignment="Bottom">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="270" MinWidth="180"/>
@@ -421,6 +758,29 @@
                                   ItemsSource="{Binding PlantFilterItems}"
                                   SelectedItem="{Binding SelectedPlantFilter}"
                                   DisplayMemberPath="Label"/>
+
+                        <!-- Search box -->
+                        <TextBox DockPanel.Dock="Top" Margin="0,0,0,6" Padding="6,4"
+                                 Text="{Binding PlantSearchText, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.Style>
+                                <Style TargetType="TextBox">
+                                    <Style.Triggers>
+                                        <Trigger Property="Text" Value="">
+                                            <Setter Property="Background">
+                                                <Setter.Value>
+                                                    <VisualBrush AlignmentX="Left" AlignmentY="Center" Stretch="None">
+                                                        <VisualBrush.Visual>
+                                                            <TextBlock Text="🔍 Search by name, latin name, variety…"
+                                                                       Foreground="#AAA" Margin="6,0,0,0" FontStyle="Italic"/>
+                                                        </VisualBrush.Visual>
+                                                    </VisualBrush>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBox.Style>
+                        </TextBox>
 
                         <!-- Plant location preview -->
                         <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
@@ -690,7 +1050,7 @@
                                 <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">
                                     <TextBlock Text="Double-click  circle" FontSize="10" Foreground="#333"/>
                                 </Border>
-                                <TextBlock Text="Add activity" FontSize="11" Foreground="#555" Margin="0,0,14,2"
+                                <TextBlock Text="Go to plant" FontSize="11" Foreground="#555" Margin="0,0,14,2"
                                            VerticalAlignment="Center"/>
 
                                 <Border Background="#E8E8E8" CornerRadius="3" Padding="5,1" Margin="0,0,4,2">

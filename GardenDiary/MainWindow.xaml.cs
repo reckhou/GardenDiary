@@ -907,7 +907,8 @@ public partial class MainWindow : Window
         if (e.ClickCount == 2)
         {
             StopDrag();
-            vm!.OpenActivityDialogForPlacement(placement.PlantId);
+            vm!.NavigateToPlant(placement.PlantId);
+            MainTabControl.SelectedItem = PlantsTab;
             e.Handled = true;
             return;
         }

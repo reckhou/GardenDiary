@@ -23,12 +23,10 @@
         <!-- Activities -->
         <Label Grid.Row="1" Grid.Column="0" Content="Activities:" VerticalAlignment="Top" Margin="0,10,0,0"/>
         <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,10,0,0">
-            <CheckBox x:Name="ChkPlanting"    Content="Planting"    Margin="0,3"/>
-            <CheckBox x:Name="ChkWatering"    Content="Watering"    Margin="0,3"/>
-            <CheckBox x:Name="ChkFertilizing" Content="Fertilizing" Margin="0,3"/>
-            <CheckBox x:Name="ChkWeeding"     Content="Weeding"     Margin="0,3"/>
-            <CheckBox x:Name="ChkMulching"    Content="Mulching"    Margin="0,3"/>
-            <CheckBox x:Name="ChkPruning"     Content="Pruning"     Margin="0,3"/>
+            <CheckBox x:Name="ChkWatering"    Content="Watering"                  Margin="0,3"/>
+            <CheckBox x:Name="ChkFertilizing" Content="Fertilizing &amp; Mulching" Margin="0,3"/>
+            <CheckBox x:Name="ChkPruning"     Content="Pruning"                   Margin="0,3"/>
+            <CheckBox x:Name="ChkPlanting"    Content="Planting"                  Margin="0,3"/>
         </StackPanel>
 
         <!-- Notes -->

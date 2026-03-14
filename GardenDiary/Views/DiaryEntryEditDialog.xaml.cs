@@ -13,12 +13,10 @@ public partial class DiaryEntryEditDialog : Window
         InitializeComponent();
         Entry = entry;
         DpDate.SelectedDate = entry.Date;
-        ChkPlanting.IsChecked    = entry.Planting;
         ChkWatering.IsChecked    = entry.Watering;
-        ChkFertilizing.IsChecked = entry.Fertilizing;
-        ChkWeeding.IsChecked     = entry.Weeding;
-        ChkMulching.IsChecked    = entry.Mulching;
+        ChkFertilizing.IsChecked = entry.Fertilizing || entry.Mulching;
         ChkPruning.IsChecked     = entry.Pruning;
+        ChkPlanting.IsChecked    = entry.Planting;
         TxtNotes.Text            = entry.Notes;
     }
 
@@ -30,13 +28,13 @@ public partial class DiaryEntryEditDialog : Window
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        bool fertMulch = ChkFertilizing.IsChecked == true;
         Entry.Date        = DpDate.SelectedDate.Value;
-        Entry.Planting    = ChkPlanting.IsChecked    == true;
-        Entry.Watering    = ChkWatering.IsChecked    == true;
-        Entry.Fertilizing = ChkFertilizing.IsChecked == true;
-        Entry.Weeding     = ChkWeeding.IsChecked     == true;
-        Entry.Mulching    = ChkMulching.IsChecked    == true;
-        Entry.Pruning     = ChkPruning.IsChecked     == true;
+        Entry.Watering    = ChkWatering.IsChecked == true;
+        Entry.Fertilizing = fertMulch;
+        Entry.Mulching    = fertMulch;
+        Entry.Pruning     = ChkPruning.IsChecked  == true;
+        Entry.Planting    = ChkPlanting.IsChecked == true;
         Entry.Notes       = TxtNotes.Text.Trim();
         DialogResult = true;
     }

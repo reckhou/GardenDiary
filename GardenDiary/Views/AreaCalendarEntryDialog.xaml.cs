@@ -26,6 +26,24 @@ public partial class AreaCalendarEntryDialog : Window
         AreaCheckList.ItemsSource = _items;
     }
 
+    // Edit-mode constructor: pre-fills for a single area's existing entry
+    public AreaCalendarEntryDialog(DateTime date, GardenArea editArea, AreaDiaryEntry? existing, IList<GardenArea> areas)
+    {
+        InitializeComponent();
+        DtpDate.SelectedDate = date.Date;
+        _items = areas.OrderBy(a => a.Name).Select(a => new AreaCheckItem(a, a.Id == editArea.Id)).ToList();
+        AreaCheckList.ItemsSource = _items;
+        if (existing != null)
+        {
+            ChkMowing.IsChecked      = existing.Mowing;
+            ChkWatering.IsChecked    = existing.Watering;
+            ChkOverseeding.IsChecked = existing.Overseeding;
+            ChkFeeding.IsChecked     = existing.Feeding;
+            ChkAerating.IsChecked    = existing.Aerating;
+            TxtNotes.Text            = existing.Notes ?? "";
+        }
+    }
+
     private void OkClick(object sender, RoutedEventArgs e)
     {
         if (DtpDate.SelectedDate == null)

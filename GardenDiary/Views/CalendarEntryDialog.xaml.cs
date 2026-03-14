@@ -14,8 +14,21 @@ namespace GardenDiary.Views;
 public class PlantCheckItem : INotifyPropertyChanged
 {
     public Plant Plant { get; }
-    public Visibility HasVariety   => string.IsNullOrEmpty(Plant.Variety)   ? Visibility.Collapsed : Visibility.Visible;
-    public Visibility HasLatinName => string.IsNullOrEmpty(Plant.LatinName) ? Visibility.Collapsed : Visibility.Visible;
+
+    public string LatinDisplay
+    {
+        get
+        {
+            var hasLatin   = !string.IsNullOrWhiteSpace(Plant.LatinName);
+            var hasVariety = !string.IsNullOrWhiteSpace(Plant.Variety);
+            if (hasLatin && hasVariety) return $"({Plant.LatinName} '{Plant.Variety}')";
+            if (hasLatin)               return $"({Plant.LatinName})";
+            if (hasVariety)             return $"('{Plant.Variety}')";
+            return "";
+        }
+    }
+
+    public Visibility HasLatinDisplay => string.IsNullOrEmpty(LatinDisplay) ? Visibility.Collapsed : Visibility.Visible;
 
     private bool _isChecked;
     public bool IsChecked
@@ -218,9 +231,8 @@ public partial class CalendarEntryDialog : Window
             return;
         }
 
-        bool anyActivity = ChkPlanting.IsChecked == true || ChkWatering.IsChecked == true ||
-                           ChkFertilizing.IsChecked == true || ChkWeeding.IsChecked == true ||
-                           ChkMulching.IsChecked == true || ChkPruning.IsChecked == true;
+        bool anyActivity = ChkWatering.IsChecked == true || ChkFertilizing.IsChecked == true ||
+                           ChkPruning.IsChecked == true || ChkPlanting.IsChecked == true;
         if (!anyActivity)
         {
             MessageBox.Show("Please select at least one activity.", "Validation",
@@ -228,15 +240,15 @@ public partial class CalendarEntryDialog : Window
             return;
         }
 
+        bool fertMulch = ChkFertilizing.IsChecked == true;
         Entry = new DiaryEntry
         {
             Date        = DtpDate.SelectedDate.Value.Date,
-            Planting    = ChkPlanting.IsChecked    == true,
-            Watering    = ChkWatering.IsChecked    == true,
-            Fertilizing = ChkFertilizing.IsChecked == true,
-            Weeding     = ChkWeeding.IsChecked     == true,
-            Mulching    = ChkMulching.IsChecked    == true,
-            Pruning     = ChkPruning.IsChecked     == true,
+            Watering    = ChkWatering.IsChecked == true,
+            Fertilizing = fertMulch,
+            Mulching    = fertMulch,
+            Pruning     = ChkPruning.IsChecked  == true,
+            Planting    = ChkPlanting.IsChecked == true,
             Notes       = TxtNotes.Text.Trim()
         };
 
