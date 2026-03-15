@@ -15,7 +15,10 @@ public class WeatherService
         {
             var dateStr = date.ToString("yyyy-MM-dd");
             var daysFromToday = (date.ToDateTime(TimeOnly.MinValue) - DateTime.Today).TotalDays;
-            var baseUrl = daysFromToday >= -92
+            // Use forecast API for recent/future dates only; archive API has reliable
+            // complete data for anything older than ~7 days. The forecast API's rolling
+            // 92-day window drops data at the edges, causing nulls for weather fields.
+            var baseUrl = daysFromToday >= -7
                 ? "https://api.open-meteo.com/v1/forecast"
                 : "https://archive-api.open-meteo.com/v1/archive";
 
