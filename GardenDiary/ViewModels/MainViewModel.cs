@@ -690,16 +690,7 @@ public class MainViewModel : INotifyPropertyChanged
     private void EditPlant()
     {
         if (SelectedPlant == null) return;
-        var copy = new Plant
-        {
-            Id            = SelectedPlant.Id,
-            CommonName    = SelectedPlant.CommonName,
-            LatinName     = SelectedPlant.LatinName,
-            Variety       = SelectedPlant.Variety,
-            Emoji         = SelectedPlant.Emoji,
-            DefaultRadius = SelectedPlant.DefaultRadius,
-            DiaryEntries  = SelectedPlant.DiaryEntries
-        };
+        var copy = SelectedPlant.Clone();
         var dialog = new PlantEditDialog(copy) { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() == true)
         {
@@ -714,14 +705,10 @@ public class MainViewModel : INotifyPropertyChanged
     private void DuplicatePlant()
     {
         if (SelectedPlant == null) return;
-        var copy = new Plant
-        {
-            CommonName    = NextDuplicateName(SelectedPlant.CommonName, Plants.Select(p => p.CommonName)),
-            LatinName     = SelectedPlant.LatinName,
-            Variety       = SelectedPlant.Variety,
-            Emoji         = SelectedPlant.Emoji,
-            DefaultRadius = SelectedPlant.DefaultRadius
-        };
+        var copy = SelectedPlant.Clone();
+        copy.Id         = Guid.NewGuid();
+        copy.CommonName = NextDuplicateName(SelectedPlant.CommonName, Plants.Select(p => p.CommonName));
+        copy.DiaryEntries = new List<DiaryEntry>();
         Plants.Add(copy);
         Save();
         RefreshPlantOptions();
@@ -1049,15 +1036,7 @@ public class MainViewModel : INotifyPropertyChanged
     private void EditArea()
     {
         if (SelectedArea == null) return;
-        var copy = new GardenArea
-        {
-            Id              = SelectedArea.Id,
-            Name            = SelectedArea.Name,
-            Width           = SelectedArea.Width,
-            Height          = SelectedArea.Height,
-            PlantPlacements = SelectedArea.PlantPlacements,
-            Shapes          = SelectedArea.Shapes
-        };
+        var copy = SelectedArea.Clone();
         var dialog = new GardenAreaEditDialog(copy) { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() == true)
         {
@@ -1104,7 +1083,7 @@ public class MainViewModel : INotifyPropertyChanged
             PlantId = PlantToPlace.Id,
             X       = x,
             Y       = y,
-            Radius  = DefaultPlacementRadius
+            Radius  = PlantToPlace.DefaultRadius > 0 ? PlantToPlace.DefaultRadius : DefaultPlacementRadius
         };
         SelectedArea.PlantPlacements.Add(placement);
         SaveAreas();

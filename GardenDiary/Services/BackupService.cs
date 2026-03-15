@@ -137,7 +137,7 @@ public class BackupService
     }
 
     /// <summary>
-    /// Restores both data and areas files from backup. Both files must exist.
+    /// Restores both data and areas files from backup. Both files must exist and contain valid JSON.
     /// </summary>
     public void Restore(string dataBackupPath, string areasBackupPath)
     {
@@ -146,8 +146,20 @@ public class BackupService
         if (!File.Exists(areasBackupPath))
             throw new FileNotFoundException("Areas backup file not found.", areasBackupPath);
 
+        ValidateJsonFile(dataBackupPath);
+        ValidateJsonFile(areasBackupPath);
+
         File.Copy(dataBackupPath, _dataFilePath, overwrite: true);
         if (_areasFilePath != null)
             File.Copy(areasBackupPath, _areasFilePath, overwrite: true);
+    }
+
+    private static void ValidateJsonFile(string path)
+    {
+        var json = File.ReadAllText(path);
+        try { JsonDocument.Parse(json).Dispose(); }
+        catch (JsonException ex)
+            { throw new InvalidDataException(
+                $"Backup file '{Path.GetFileName(path)}' contains invalid JSON: {ex.Message}", ex); }
     }
 }

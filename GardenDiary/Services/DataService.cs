@@ -29,7 +29,9 @@ public class DataService
     {
         if (!File.Exists(DataFilePath)) return new List<Plant>();
         var json = File.ReadAllText(DataFilePath);
-        return JsonSerializer.Deserialize<List<Plant>>(json, _options) ?? new List<Plant>();
+        try { return JsonSerializer.Deserialize<List<Plant>>(json, _options) ?? new List<Plant>(); }
+        catch (JsonException ex)
+            { throw new InvalidDataException($"Plants data file is corrupted: {ex.Message}", ex); }
     }
 
     public void SavePlants(IEnumerable<Plant> plants)
@@ -42,7 +44,9 @@ public class DataService
     {
         if (!File.Exists(AreasFilePath)) return new List<GardenArea>();
         var json = File.ReadAllText(AreasFilePath);
-        return JsonSerializer.Deserialize<List<GardenArea>>(json, _options) ?? new List<GardenArea>();
+        try { return JsonSerializer.Deserialize<List<GardenArea>>(json, _options) ?? new List<GardenArea>(); }
+        catch (JsonException ex)
+            { throw new InvalidDataException($"Areas data file is corrupted: {ex.Message}", ex); }
     }
 
     public void SaveAreas(IEnumerable<GardenArea> areas)
@@ -55,7 +59,9 @@ public class DataService
     {
         if (!File.Exists(TasksFilePath)) return new List<GardenTask>();
         var json = File.ReadAllText(TasksFilePath);
-        return JsonSerializer.Deserialize<List<GardenTask>>(json, _options) ?? new List<GardenTask>();
+        try { return JsonSerializer.Deserialize<List<GardenTask>>(json, _options) ?? new List<GardenTask>(); }
+        catch (JsonException ex)
+            { throw new InvalidDataException($"Tasks data file is corrupted: {ex.Message}", ex); }
     }
 
     public void SaveTasks(IEnumerable<GardenTask> tasks)

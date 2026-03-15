@@ -7,7 +7,7 @@ namespace GardenDiary.Services;
 
 public class WeatherService
 {
-    private static readonly HttpClient _http = new();
+    private static readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(10) };
 
     public async Task<DayWeather> GetWeatherAsync(double lat, double lon, DateOnly date)
     {

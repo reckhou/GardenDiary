@@ -32,16 +32,17 @@ public partial class LocationPickerDialog : Window
             MapWebView.CoreWebView2.WebMessageReceived += OnMapMessage;
             MapWebView.CoreWebView2.NavigateToString(BuildMapHtml());
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"WebView2 unavailable: {ex.Message}");
             // WebView2 not available — fall back to manual coordinate input
-            MapWebView.Visibility = Visibility.Collapsed;
-            CoordLabel.Visibility = Visibility.Collapsed;
+            MapWebView.Visibility  = Visibility.Collapsed;
+            CoordLabel.Visibility  = Visibility.Collapsed;
             ManualPanel.Visibility = Visibility.Visible;
-            if (_initLat.HasValue)
+            if (_initLat.HasValue && _initLon.HasValue)
             {
-                TxtLat.Text = _initLat.Value.ToString("F5", CultureInfo.InvariantCulture);
-                TxtLon.Text = _initLon!.Value.ToString("F5", CultureInfo.InvariantCulture);
+                TxtLat.Text        = _initLat.Value.ToString("F5", CultureInfo.InvariantCulture);
+                TxtLon.Text        = _initLon.Value.ToString("F5", CultureInfo.InvariantCulture);
                 OkButton.IsEnabled = true;
             }
         }

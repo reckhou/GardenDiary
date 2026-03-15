@@ -21,46 +21,34 @@ public static class GardenPreviewHelper
 
     /// <summary>
     /// Builds a Guid→colorHex map for all plants in one O(n) pass.
-    /// Use this when coloring multiple placements to avoid O(n) per placement.
+    /// Colors are stable: same plant ID and emoji always map to the same palette slot
+    /// regardless of list ordering.
     /// </summary>
     public static Dictionary<Guid, string> BuildColorMap(IList<Plant> plantList)
     {
-        var distinctEmojis = plantList
-            .Where(p => !string.IsNullOrWhiteSpace(p.Emoji))
-            .Select(p => p.Emoji!)
-            .Distinct()
-            .ToList();
-
         var map = new Dictionary<Guid, string>(plantList.Count);
-        for (int i = 0; i < plantList.Count; i++)
-        {
-            var p = plantList[i];
-            if (!string.IsNullOrWhiteSpace(p.Emoji))
-            {
-                var idx = distinctEmojis.IndexOf(p.Emoji);
-                map[p.Id] = PlantPalette[idx % PlantPalette.Length];
-            }
-            else
-            {
-                map[p.Id] = PlantPalette[i % PlantPalette.Length];
-            }
-        }
+        foreach (var p in plantList)
+            map[p.Id] = PlantPalette[PlantColorIndex(p)];
         return map;
     }
 
+    /// <summary>
+    /// Returns the palette color for a single plant. Stable — unaffected by list order.
+    /// The <paramref name="plantList"/> parameter is kept for API compatibility but unused.
+    /// </summary>
     public static string GetPlantColor(Plant plant, IList<Plant> plantList)
+        => PlantPalette[PlantColorIndex(plant)];
+
+    /// <summary>
+    /// Deterministic palette index based on plant identity:
+    /// plants sharing an emoji get the same color; emoji-less plants use their ID hash.
+    /// </summary>
+    private static int PlantColorIndex(Plant plant)
     {
-        if (!string.IsNullOrWhiteSpace(plant.Emoji))
-        {
-            var distinctEmojis = plantList
-                .Where(p => !string.IsNullOrWhiteSpace(p.Emoji))
-                .Select(p => p.Emoji)
-                .Distinct()
-                .ToList();
-            var idx = distinctEmojis.IndexOf(plant.Emoji);
-            return PlantPalette[idx % PlantPalette.Length];
-        }
-        return PlantPalette[Math.Max(0, plantList.IndexOf(plant)) % PlantPalette.Length];
+        var hash = string.IsNullOrWhiteSpace(plant.Emoji)
+            ? Math.Abs(plant.Id.GetHashCode())
+            : Math.Abs(plant.Emoji.GetHashCode());
+        return hash % PlantPalette.Length;
     }
 
     /// <summary>
@@ -75,6 +63,8 @@ public static class GardenPreviewHelper
         var cw = canvas.ActualWidth;
         var ch = canvas.ActualHeight;
         if (cw <= 0 || ch <= 0) return;
+
+        if (area.Width <= 0 || area.Height <= 0) return;
 
         const double margin = 6;
         var scale = Math.Min((cw - margin * 2) / area.Width, (ch - margin * 2) / area.Height);

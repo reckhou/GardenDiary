@@ -69,6 +69,16 @@ public partial class MainWindow : Window
         }
     }
 
+    private void Window_Closed(object sender, EventArgs e)
+    {
+        if (DataContext is MainViewModel vm)
+        {
+            vm.PropertyChanged        -= OnVmPropertyChanged;
+            vm.CanvasRefreshRequested -= RefreshGardenCanvas;
+            vm.PlacementResized       -= UpdatePlacementSize;
+        }
+    }
+
     // ── Plants list ───────────────────────────────────────────────────────────
 
     private void PlantList_MouseDoubleClick(object sender, MouseButtonEventArgs e)

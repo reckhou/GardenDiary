@@ -9,4 +9,15 @@ public class GardenArea
     public List<PlantPlacement> PlantPlacements { get; set; } = new();
     public List<GardenShape> Shapes { get; set; } = new();
     public List<AreaDiaryEntry> DiaryEntries { get; set; } = new();
+
+    public GardenArea Clone() => new()
+    {
+        Id              = Id,
+        Name            = Name,
+        Width           = Width,
+        Height          = Height,
+        PlantPlacements = PlantPlacements,
+        Shapes          = Shapes,
+        DiaryEntries    = DiaryEntries
+    };
 }
