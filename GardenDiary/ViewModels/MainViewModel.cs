@@ -46,8 +46,8 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<GardenTask>            Tasks               { get; } = new();
     public ObservableCollection<TaskCardViewModel>     TaskCards           { get; } = new();
     public ObservableCollection<TaskCardViewModel>     CompletedTaskCards  { get; } = new();
-    public ObservableCollection<ReminderPlantViewModel> PlantReminders { get; } = new();
-    public ObservableCollection<ReminderAreaViewModel>  AreaReminders  { get; } = new();
+    public ObservableCollection<PlantAreaGroupViewModel> PlantAreaGroups { get; } = new();
+    public ObservableCollection<ReminderAreaViewModel>   AreaReminders   { get; } = new();
 
     private PlantFilterItem? _selectedPlantFilter;
     public PlantFilterItem? SelectedPlantFilter
@@ -1477,7 +1477,8 @@ public class MainViewModel : INotifyPropertyChanged
     {
         var q = _reminderSearchText.Trim();
 
-        PlantReminders.Clear();
+        // Build plant view models grouped by area
+        var plantVms = new List<(string areaKey, ReminderPlantViewModel vm)>();
         foreach (var plant in Plants.OrderBy(p => p.CommonName))
         {
             if (plant.DiaryEntries.Count == 0) continue;
@@ -1498,7 +1499,23 @@ public class MainViewModel : INotifyPropertyChanged
             }
             if (items.Count == 0) continue;
             var latinDisplay = FormatLatinWithVariety(plant.LatinName, plant.Variety);
-            PlantReminders.Add(new ReminderPlantViewModel(plant.CommonName, latinDisplay, items));
+            var areaName = Areas.FirstOrDefault(a => a.PlantPlacements.Any(p => p.PlantId == plant.Id))?.Name;
+            plantVms.Add((areaName ?? "", new ReminderPlantViewModel(plant.Id, plant.CommonName, latinDisplay, items)));
+        }
+
+        // Preserve expanded state by area name, then rebuild groups
+        var expandedState = PlantAreaGroups.ToDictionary(g => g.AreaName, g => g.IsExpanded);
+        PlantAreaGroups.Clear();
+        foreach (var group in plantVms
+            .GroupBy(x => x.areaKey)
+            .OrderBy(g => g.Key == "" ? 1 : 0)   // named areas first, unplaced last
+            .ThenBy(g => g.Key))
+        {
+            var areaLabel = group.Key == "" ? "Unplaced" : group.Key;
+            var grpVm = new PlantAreaGroupViewModel(areaLabel, group.Select(x => x.vm).ToList());
+            if (expandedState.TryGetValue(areaLabel, out var wasExpanded))
+                grpVm.IsExpanded = wasExpanded;
+            PlantAreaGroups.Add(grpVm);
         }
 
         AreaReminders.Clear();
@@ -1519,7 +1536,7 @@ public class MainViewModel : INotifyPropertyChanged
             AreaReminders.Add(new ReminderAreaViewModel(area.Name, items));
         }
 
-        OnPropertyChanged(nameof(PlantReminders));
+        OnPropertyChanged(nameof(PlantAreaGroups));
         OnPropertyChanged(nameof(AreaReminders));
     }
 

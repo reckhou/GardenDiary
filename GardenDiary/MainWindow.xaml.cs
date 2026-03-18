@@ -148,6 +148,49 @@ public partial class MainWindow : Window
         GardenPreviewHelper.Draw(DayPreviewCanvas, plant, area, vm.Plants);
     }
 
+    // ── Latest Activities hover preview ──────────────────────────────────────
+
+    private Guid _activityHoveredPlantId;
+
+    private void ActivityCard_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement fe || fe.Tag is not Guid plantId) return;
+        _activityHoveredPlantId = plantId;
+        ShowActivityPreview(plantId);
+    }
+
+    private void ActivityCard_MouseLeave(object sender, MouseEventArgs e)
+    {
+        _activityHoveredPlantId = Guid.Empty;
+        ActivityPreviewPopup.IsOpen = false;
+        ActivityPreviewCanvas.Children.Clear();
+    }
+
+    private void ActivityPreviewCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_activityHoveredPlantId != Guid.Empty)
+            ShowActivityPreview(_activityHoveredPlantId);
+    }
+
+    private void ShowActivityPreview(Guid plantId)
+    {
+        var vm    = DataContext as MainViewModel;
+        if (vm == null) return;
+        var plant = vm.Plants.FirstOrDefault(p => p.Id == plantId);
+        var area  = plant == null ? null
+                  : vm.Areas.FirstOrDefault(a => a.PlantPlacements.Any(pp => pp.PlantId == plantId));
+
+        if (plant == null || area == null)
+        {
+            ActivityPreviewPopup.IsOpen = false;
+            return;
+        }
+
+        ActivityPreviewLabel.Text   = $"📍 {area.Name}";
+        ActivityPreviewPopup.IsOpen = true;
+        GardenPreviewHelper.Draw(ActivityPreviewCanvas, plant, area, vm.Plants);
+    }
+
     // ── Placement radius ──────────────────────────────────────────────────────
 
     private void PlacementRadius_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
@@ -345,12 +388,17 @@ public partial class MainWindow : Window
 
         var ellipse = new Ellipse
         {
-            Fill            = new SolidColorBrush(fillColor) { Opacity = 0.78 },
+            Fill            = new SolidColorBrush(fillColor) { Opacity = 0.92 },
             Stroke          = isSelected ? Brushes.Black : new SolidColorBrush(fillColor) { Opacity = 0.4 },
             StrokeThickness = isSelected ? 2.5 : 1.5,
             Width           = r * 2,
             Height          = r * 2
         };
+
+        var emojiFontSize   = Math.Clamp(r * 0.50,  10, 28);
+        var nameFontSize    = Math.Clamp(r * 0.38,   7, 18);
+        var latinFontSize   = Math.Clamp(r * 0.28,   7, 13);
+        var varietyFontSize = Math.Clamp(r * 0.24,   6, 11);
 
         var labelPanel = new StackPanel
         {
@@ -364,7 +412,7 @@ public partial class MainWindow : Window
             labelPanel.Children.Add(new Emoji.Wpf.TextBlock
             {
                 Text                = plant.Emoji,
-                FontSize            = Math.Clamp(r * 0.5, 10, 22),
+                FontSize            = emojiFontSize,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 IsHitTestVisible    = false
             });
@@ -372,19 +420,26 @@ public partial class MainWindow : Window
         labelPanel.Children.Add(new TextBlock
         {
             Text             = plant.CommonName,
-            FontSize         = Math.Clamp(r * 0.38, 7, 13),
+            FontSize         = nameFontSize,
             Foreground       = Brushes.White,
             FontWeight       = FontWeights.SemiBold,
             TextWrapping     = TextWrapping.Wrap,
             TextAlignment    = TextAlignment.Center,
             IsHitTestVisible = false
         });
-        if (!string.IsNullOrWhiteSpace(plant.LatinName))
+        // Latin name and variety are progressively hidden as the circle shrinks.
+        // Budget: emoji (~r*0.5) + name (~r*0.38) already consumes most of a small circle,
+        // so latin name only appears once the circle is large enough to absorb another row.
+        bool hasEmoji = !string.IsNullOrWhiteSpace(plant.Emoji);
+        double latinThreshold   = hasEmoji ? 42 : 35;
+        double varietyThreshold = hasEmoji ? 58 : 50;
+
+        if (r >= latinThreshold && !string.IsNullOrWhiteSpace(plant.LatinName))
         {
             labelPanel.Children.Add(new TextBlock
             {
                 Text             = plant.LatinName,
-                FontSize         = Math.Clamp(r * 0.28, 6, 10),
+                FontSize         = latinFontSize,
                 Foreground       = new SolidColorBrush(Colors.White) { Opacity = 0.82 },
                 FontStyle        = FontStyles.Italic,
                 TextWrapping     = TextWrapping.Wrap,
@@ -392,12 +447,12 @@ public partial class MainWindow : Window
                 IsHitTestVisible = false
             });
         }
-        if (!string.IsNullOrWhiteSpace(plant.Variety))
+        if (r >= varietyThreshold && !string.IsNullOrWhiteSpace(plant.Variety))
         {
             labelPanel.Children.Add(new TextBlock
             {
                 Text             = plant.Variety,
-                FontSize         = Math.Clamp(r * 0.26, 6, 9),
+                FontSize         = varietyFontSize,
                 Foreground       = new SolidColorBrush(Colors.White) { Opacity = 0.70 },
                 TextWrapping     = TextWrapping.Wrap,
                 TextAlignment    = TextAlignment.Center,
@@ -882,6 +937,7 @@ public partial class MainWindow : Window
         vm.SelectedShape = null;
         UpdateSelectionRing(oldPlantId, null);
         UpdateShapeSelectionRing(oldShapeId, null);
+        PlantInfoPopup.IsOpen = false;
     }
 
     private void GardenCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -940,7 +996,36 @@ public partial class MainWindow : Window
         UpdateShapeSelectionRing(oldShapeId, null);
         UpdateSelectionRing(oldPlantId, placement.Id);
 
+        // Show plant info popup if any fields are hidden at this circle size
+        ShowPlantInfoPopup(placement, vm);
+
         e.Handled = true;
+    }
+
+    private void ShowPlantInfoPopup(PlantPlacement placement, MainViewModel? vm)
+    {
+        var plant = vm?.Plants.FirstOrDefault(p => p.Id == placement.PlantId);
+        if (plant == null) { PlantInfoPopup.IsOpen = false; return; }
+
+        bool hasEmoji         = !string.IsNullOrWhiteSpace(plant.Emoji);
+        double latinThreshold   = hasEmoji ? 42 : 35;
+        double varietyThreshold = hasEmoji ? 58 : 50;
+        bool latinHidden   = placement.Radius < latinThreshold   && !string.IsNullOrWhiteSpace(plant.LatinName);
+        bool varietyHidden = placement.Radius < varietyThreshold && !string.IsNullOrWhiteSpace(plant.Variety);
+
+        if (!latinHidden && !varietyHidden) { PlantInfoPopup.IsOpen = false; return; }
+
+        PlantInfoName.Text = plant.CommonName;
+
+        PlantInfoLatin.Text       = plant.LatinName ?? "";
+        PlantInfoLatin.Visibility = string.IsNullOrWhiteSpace(plant.LatinName)
+                                    ? Visibility.Collapsed : Visibility.Visible;
+
+        PlantInfoVariety.Text       = plant.Variety ?? "";
+        PlantInfoVariety.Visibility = string.IsNullOrWhiteSpace(plant.Variety)
+                                      ? Visibility.Collapsed : Visibility.Visible;
+
+        PlantInfoPopup.IsOpen = true;
     }
 
     private void PlantPanel_MouseMove(object sender, MouseEventArgs e)

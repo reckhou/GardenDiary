@@ -16,6 +16,7 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
     </Window.Resources>
 
+    <Grid>
     <DockPanel>
 
         <!-- ===== Menu bar ===== -->
@@ -644,7 +645,7 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <!-- Plants section -->
+                            <!-- Plants section — grouped by garden area -->
                             <TextBlock Text="Plants" FontSize="12" FontWeight="SemiBold"
                                        Foreground="#555" Margin="0,0,0,4"/>
                             <TextBlock Text="No plant diary entries recorded yet."
@@ -653,61 +654,76 @@
                                     <Style TargetType="TextBlock">
                                         <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PlantReminders.Count}" Value="0">
+                                            <DataTrigger Binding="{Binding PlantAreaGroups.Count}" Value="0">
                                                 <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
                                 </TextBlock.Style>
                             </TextBlock>
-                            <ItemsControl ItemsSource="{Binding PlantReminders}">
+                            <ItemsControl ItemsSource="{Binding PlantAreaGroups}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Margin="0,0,0,8" BorderBrush="#DDD" BorderThickness="1"
-                                                CornerRadius="3" Padding="8">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding PlantDisplayName}"
-                                                           FontWeight="Bold" FontSize="13" Margin="0,0,0,1"/>
-                                                <TextBlock Text="{Binding LatinName}"
-                                                           FontStyle="Italic" Foreground="#888" FontSize="11" Margin="0,0,0,4">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasLatinName}" Value="False">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                                <ItemsControl ItemsSource="{Binding Items}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Grid Margin="0,2,0,2">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="100"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="Auto"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <Border Grid.Column="0"
-                                                                        Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
-                                                                        CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
-                                                                    <TextBlock Text="{Binding ActivityName}"
-                                                                               Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
-                                                                               FontSize="11" FontWeight="SemiBold"/>
-                                                                </Border>
-                                                                <TextBlock Grid.Column="1" Text="{Binding LastDateLabel}"
-                                                                           FontSize="11" VerticalAlignment="Center"
-                                                                           Margin="8,0,0,0"/>
-                                                                <TextBlock Grid.Column="2" Text="{Binding DaysAgoLabel}"
-                                                                           Foreground="#888" FontSize="11"
-                                                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
-                                                            </Grid>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </StackPanel>
-                                        </Border>
+                                        <Expander IsExpanded="{Binding IsExpanded}" Margin="0,0,0,6">
+                                            <Expander.Header>
+                                                <TextBlock Text="{Binding AreaName}"
+                                                           FontSize="12" FontWeight="SemiBold" Foreground="#444"/>
+                                            </Expander.Header>
+                                            <ItemsControl ItemsSource="{Binding Plants}" Margin="0,4,0,0">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Margin="0,0,0,6" BorderBrush="#DDD" BorderThickness="1"
+                                                                CornerRadius="3" Padding="8" Background="Transparent"
+                                                                Tag="{Binding PlantId}"
+                                                                MouseEnter="ActivityCard_MouseEnter"
+                                                                MouseLeave="ActivityCard_MouseLeave">
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding PlantDisplayName}"
+                                                                           FontWeight="Bold" FontSize="13" Margin="0,0,0,1"/>
+                                                                <TextBlock Text="{Binding LatinName}"
+                                                                           FontStyle="Italic" Foreground="#888" FontSize="11" Margin="0,0,0,4">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasLatinName}" Value="False">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <ItemsControl ItemsSource="{Binding Items}">
+                                                                    <ItemsControl.ItemTemplate>
+                                                                        <DataTemplate>
+                                                                            <Grid Margin="0,2,0,2">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="100"/>
+                                                                                    <ColumnDefinition Width="*"/>
+                                                                                    <ColumnDefinition Width="Auto"/>
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <Border Grid.Column="0"
+                                                                                        Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
+                                                                                        CornerRadius="3" Padding="6,2" HorizontalAlignment="Left">
+                                                                                    <TextBlock Text="{Binding ActivityName}"
+                                                                                               Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"
+                                                                                               FontSize="11" FontWeight="SemiBold"/>
+                                                                                </Border>
+                                                                                <TextBlock Grid.Column="1" Text="{Binding LastDateLabel}"
+                                                                                           FontSize="11" VerticalAlignment="Center"
+                                                                                           Margin="8,0,0,0"/>
+                                                                                <TextBlock Grid.Column="2" Text="{Binding DaysAgoLabel}"
+                                                                                           Foreground="#888" FontSize="11"
+                                                                                           VerticalAlignment="Center" Margin="6,0,0,0"/>
+                                                                            </Grid>
+                                                                        </DataTemplate>
+                                                                    </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Expander>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
@@ -1075,117 +1091,120 @@
                         </Border>
 
                         <!-- Selection bar (bottom) — plant placement -->
-                        <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
-                                Background="#F5F5F5" Padding="8,5">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding SelectedPlacementLabel}"
+                        <!-- Fixed-height bottom bar — all three panels share the same space
+                             so the canvas never shifts when selection changes. -->
+                        <Grid DockPanel.Dock="Bottom" Height="36" Margin="0,6,0,0">
+
+                            <!-- Plant placement bar -->
+                            <Border Background="#F5F5F5" Padding="8,5">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SelectedPlacementLabel}"
+                                               VerticalAlignment="Center" Foreground="#555"/>
+                                    <TextBlock Text="Radius (cm):"
+                                               VerticalAlignment="Center" Margin="12,0,4,0"/>
+                                    <TextBox x:Name="TxtPlacementRadius" Width="50" Padding="3,2"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SelectedPlacementRadius, UpdateSourceTrigger=LostFocus}"
+                                             KeyDown="PlacementRadius_KeyDown"
+                                             LostFocus="PlacementRadius_LostFocus"/>
+                                    <Button Content="Remove"
+                                            Command="{Binding DeletePlacementCommand}"
+                                            Width="72" Margin="8,0,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Shape selection bar -->
+                            <Border Background="#EDE7F6" Padding="8,5">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSelectedShape}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding SelectedShapeLabel}"
+                                               VerticalAlignment="Center" Foreground="#555" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Label:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <TextBox Width="90" Padding="3,2" Margin="0,0,8,0"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SelectedShape.Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             LostFocus="ShapeField_LostFocus"
+                                             KeyDown="ShapeField_KeyDown"/>
+                                    <TextBlock Text="W:" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                    <TextBox Width="44" Padding="3,2" Margin="0,0,6,0"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             LostFocus="ShapeField_LostFocus"
+                                             KeyDown="ShapeField_KeyDown"/>
+                                    <TextBlock Text="H:" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                    <TextBox Width="44" Padding="3,2" Margin="0,0,6,0"
+                                             VerticalContentAlignment="Center"
+                                             Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                             LostFocus="ShapeField_LostFocus"
+                                             KeyDown="ShapeField_KeyDown"/>
+                                    <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                                    <Grid Margin="0,0,8,0">
+                                        <Button x:Name="ShapeColorBtn" Width="32" Height="22"
+                                                Padding="0" Click="ShapeColorBtn_Click"
+                                                ToolTip="Choose colour">
+                                            <Border x:Name="ShapeColorPreview" Width="24" Height="14"
+                                                    CornerRadius="2" Background="#90CAF9"/>
+                                        </Button>
+                                        <Popup x:Name="ColorPickerPopup" StaysOpen="False"
+                                               Placement="Bottom" PlacementTarget="{Binding ElementName=ShapeColorBtn}">
+                                            <Border Background="White" BorderBrush="#CCC" BorderThickness="1"
+                                                    Padding="6" Effect="{StaticResource DropShadow}">
+                                                <StackPanel>
+                                                    <WrapPanel x:Name="SwatchPanel" Width="168" Margin="0,0,0,6"/>
+                                                    <Button Content="Custom colour…" Click="ShapeCustomColor_Click"
+                                                            HorizontalAlignment="Stretch" Padding="4,3"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                    <Button Content="Bring to Front" Padding="6,2" Margin="0,0,4,0"
+                                            Command="{Binding BringShapeToFrontCommand}"/>
+                                    <Button Content="Send to Back" Padding="6,2" Margin="0,0,4,0"
+                                            Command="{Binding SendShapeToBackCommand}"/>
+                                    <Button Content="Remove" Padding="6,2"
+                                            Command="{Binding DeleteShapeCommand}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Default info bar when nothing is selected -->
+                            <Border Background="#F5F5F5" Padding="8,5">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasSelectedShape}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="Click a plant or shape on the canvas to select it"
                                            VerticalAlignment="Center" Foreground="#555"/>
-                                <TextBlock Text="Radius (cm):"
-                                           VerticalAlignment="Center" Margin="12,0,4,0"/>
-                                <TextBox x:Name="TxtPlacementRadius" Width="50" Padding="3,2"
-                                         VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedPlacementRadius, UpdateSourceTrigger=LostFocus}"
-                                         KeyDown="PlacementRadius_KeyDown"
-                                         LostFocus="PlacementRadius_LostFocus"/>
-                                <Button Content="Remove"
-                                        Command="{Binding DeletePlacementCommand}"
-                                        Width="72" Margin="8,0,0,0"/>
-                            </StackPanel>
-                        </Border>
+                            </Border>
 
-                        <!-- Selection bar (bottom) — shape -->
-                        <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
-                                Background="#EDE7F6" Padding="8,5">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasSelectedShape}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="{Binding SelectedShapeLabel}"
-                                           VerticalAlignment="Center" Foreground="#555" Margin="0,0,10,0"/>
-                                <TextBlock Text="Label:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <TextBox Width="90" Padding="3,2" Margin="0,0,8,0"
-                                         VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedShape.Label, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                         LostFocus="ShapeField_LostFocus"
-                                         KeyDown="ShapeField_KeyDown"/>
-                                <TextBlock Text="W:" VerticalAlignment="Center" Margin="0,0,2,0"/>
-                                <TextBox Width="44" Padding="3,2" Margin="0,0,6,0"
-                                         VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedShape.Width, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                         LostFocus="ShapeField_LostFocus"
-                                         KeyDown="ShapeField_KeyDown"/>
-                                <TextBlock Text="H:" VerticalAlignment="Center" Margin="0,0,2,0"/>
-                                <TextBox Width="44" Padding="3,2" Margin="0,0,6,0"
-                                         VerticalContentAlignment="Center"
-                                         Text="{Binding SelectedShape.Height, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
-                                         LostFocus="ShapeField_LostFocus"
-                                         KeyDown="ShapeField_KeyDown"/>
-                                <TextBlock Text="Color:" VerticalAlignment="Center" Margin="0,0,4,0"/>
-                                <!-- Color swatch button + popup palette -->
-                                <Grid Margin="0,0,8,0">
-                                    <Button x:Name="ShapeColorBtn" Width="32" Height="22"
-                                            Padding="0" Click="ShapeColorBtn_Click"
-                                            ToolTip="Choose colour">
-                                        <Border x:Name="ShapeColorPreview" Width="24" Height="14"
-                                                CornerRadius="2" Background="#90CAF9"/>
-                                    </Button>
-                                    <Popup x:Name="ColorPickerPopup" StaysOpen="False"
-                                           Placement="Bottom" PlacementTarget="{Binding ElementName=ShapeColorBtn}">
-                                        <Border Background="White" BorderBrush="#CCC" BorderThickness="1"
-                                                Padding="6" Effect="{StaticResource DropShadow}">
-                                            <StackPanel>
-                                                <WrapPanel x:Name="SwatchPanel" Width="168" Margin="0,0,0,6"/>
-                                                <Button Content="Custom colour…" Click="ShapeCustomColor_Click"
-                                                        HorizontalAlignment="Stretch" Padding="4,3"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </Popup>
-                                </Grid>
-                                <Button Content="Bring to Front" Padding="6,2" Margin="0,0,4,0"
-                                        Command="{Binding BringShapeToFrontCommand}"/>
-                                <Button Content="Send to Back" Padding="6,2" Margin="0,0,4,0"
-                                        Command="{Binding SendShapeToBackCommand}"/>
-                                <Button Content="Remove" Padding="6,2"
-                                        Command="{Binding DeleteShapeCommand}"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Default info bar when nothing selected -->
-                        <Border DockPanel.Dock="Bottom" Margin="0,6,0,0"
-                                Background="#F5F5F5" Padding="8,5">
-                            <Border.Style>
-                                <Style TargetType="Border">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding HasSelectedPlacement}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding HasSelectedShape}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <TextBlock Text="Click a plant or shape on the canvas to select it"
-                                       VerticalAlignment="Center" Foreground="#555"/>
-                        </Border>
+                        </Grid>
 
                         <!-- Canvas viewport -->
                         <ScrollViewer x:Name="GardenScrollViewer"
@@ -1209,5 +1228,48 @@
             </TabItem>
 
         </TabControl>
+
     </DockPanel>
+
+    <!-- Latest Activities hover preview popup (Grid sibling — outside DockPanel to avoid layout interference) -->
+    <Popup x:Name="ActivityPreviewPopup"
+           Placement="Mouse"
+           AllowsTransparency="True"
+           StaysOpen="True"
+           IsOpen="False">
+        <Border Background="White" BorderBrush="#CCC" BorderThickness="1"
+                CornerRadius="3" Width="240" Height="170"
+                Effect="{StaticResource DropShadow}">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Background="#F0F4F0" Padding="8,4">
+                    <TextBlock x:Name="ActivityPreviewLabel"
+                               FontSize="11" FontWeight="SemiBold" Foreground="#444"/>
+                </Border>
+                <Canvas x:Name="ActivityPreviewCanvas" Background="#E8F5E9"
+                        SizeChanged="ActivityPreviewCanvas_SizeChanged"/>
+            </DockPanel>
+        </Border>
+    </Popup>
+
+    <!-- Garden canvas plant info popup — shown on selection when fields are hidden -->
+    <Popup x:Name="PlantInfoPopup"
+           Placement="MousePoint"
+           AllowsTransparency="True"
+           StaysOpen="True"
+           IsOpen="False">
+        <Border Background="White" BorderBrush="#CCC" BorderThickness="1"
+                CornerRadius="4" Padding="10,8"
+                Effect="{StaticResource DropShadow}">
+            <StackPanel>
+                <TextBlock x:Name="PlantInfoName"
+                           FontSize="13" FontWeight="SemiBold"/>
+                <TextBlock x:Name="PlantInfoLatin"
+                           FontSize="11" FontStyle="Italic" Foreground="#555" Margin="0,2,0,0"/>
+                <TextBlock x:Name="PlantInfoVariety"
+                           FontSize="11" Foreground="#777" Margin="0,1,0,0"/>
+            </StackPanel>
+        </Border>
+    </Popup>
+
+    </Grid>
 </Window>

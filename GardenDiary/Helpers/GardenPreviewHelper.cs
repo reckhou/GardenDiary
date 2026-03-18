@@ -14,9 +14,16 @@ public static class GardenPreviewHelper
 {
     private static readonly string[] PlantPalette =
     [
-        "#66BB6A", "#42A5F5", "#FFA726", "#EC407A",
-        "#AB47BC", "#26A69A", "#D4E157", "#FF7043",
-        "#78909C", "#8D6E63"
+        "#388E3C",  // green 700
+        "#1565C0",  // blue 800
+        "#E65100",  // deep-orange 900
+        "#880E4F",  // pink 900
+        "#4A148C",  // purple 900
+        "#00695C",  // teal 800
+        "#558B2F",  // light-green 800  (replaces lime)
+        "#4E342E",  // brown 700
+        "#37474F",  // blue-grey 700
+        "#283593",  // indigo 800
     ];
 
     /// <summary>
@@ -45,9 +52,19 @@ public static class GardenPreviewHelper
     /// </summary>
     private static int PlantColorIndex(Plant plant)
     {
-        var hash = string.IsNullOrWhiteSpace(plant.Emoji)
-            ? Math.Abs(plant.Id.GetHashCode())
-            : Math.Abs(plant.Emoji.GetHashCode());
+        int hash;
+        if (string.IsNullOrWhiteSpace(plant.Emoji))
+        {
+            hash = Math.Abs(plant.Id.GetHashCode());
+        }
+        else
+        {
+            // string.GetHashCode() is randomised per-process in .NET Core+,
+            // so sum the Unicode code points instead for a stable result.
+            hash = 0;
+            foreach (var rune in plant.Emoji.EnumerateRunes())
+                hash += rune.Value;
+        }
         return hash % PlantPalette.Length;
     }
 
