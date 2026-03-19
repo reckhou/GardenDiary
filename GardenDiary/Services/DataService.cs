@@ -13,6 +13,39 @@ public class DataService
 
     private static readonly JsonSerializerOptions _options = new() { WriteIndented = true };
 
+    // ── Bootstrap: records the custom data folder in the fixed default AppData dir ──
+
+    private static readonly string _defaultDir =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GardenDiary");
+
+    private static string BootstrapPath => Path.Combine(_defaultDir, "bootstrap.json");
+
+    /// <summary>Returns the user-configured data folder, or null to use the default.</summary>
+    public static string? LoadCustomDir()
+    {
+        try
+        {
+            if (!File.Exists(BootstrapPath)) return null;
+            var doc = JsonDocument.Parse(File.ReadAllText(BootstrapPath));
+            return doc.RootElement.TryGetProperty("DataFolder", out var el) ? el.GetString() : null;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>Persists the custom data folder. Pass null to revert to the default.</summary>
+    public static void SaveCustomDir(string? dir)
+    {
+        Directory.CreateDirectory(_defaultDir);
+        if (string.IsNullOrWhiteSpace(dir))
+        {
+            if (File.Exists(BootstrapPath)) File.Delete(BootstrapPath);
+            return;
+        }
+        File.WriteAllText(BootstrapPath, JsonSerializer.Serialize(new { DataFolder = dir }));
+    }
+
+    // ── Constructor ──────────────────────────────────────────────────────────
+
     public DataService() : this(null) { }
 
     public DataService(string? customDir)

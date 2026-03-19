@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using GardenDiary.Helpers;
 using GardenDiary.Models;
 using CheckBox = System.Windows.Controls.CheckBox;
 using MessageBox = System.Windows.MessageBox;
@@ -16,6 +17,10 @@ public partial class TaskEditDialog : Window
     private DateTime? _existingCompletedDate;
     private List<Guid> _existingCompletedItemIds = new();
 
+    private readonly IList<Plant>      _plantList;
+    private readonly IList<GardenArea> _areas;
+    private Guid _hoveredPlantId;
+
     public GardenTask Task { get; private set; } = new();
 
     // ── New task ──────────────────────────────────────────────────────────────
@@ -23,6 +28,8 @@ public partial class TaskEditDialog : Window
     public TaskEditDialog(GardenTask task, IList<Plant> plants, IList<GardenArea> areas)
     {
         InitializeComponent();
+        _plantList = plants;
+        _areas     = areas;
         BuildPlantSelector(plants, areas);
         BuildAreaSelector(areas);
         PreFill(task, plants, areas);
@@ -129,6 +136,47 @@ public partial class TaskEditDialog : Window
             RbOneOff.IsChecked  = false;
             TxtRepeatDays.Text  = task.RepeatDays.ToString();
         }
+    }
+
+    // ── Plant hover preview ───────────────────────────────────────────────────
+
+    private void PlantItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is PlantCheckItem ci)
+        {
+            _hoveredPlantId = ci.Plant.Id;
+            ShowPlantPreview(ci.Plant.Id);
+        }
+    }
+
+    private void PlantItem_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        _hoveredPlantId = Guid.Empty;
+        PlantPreviewPopup.IsOpen = false;
+        PlantPreviewCanvas.Children.Clear();
+    }
+
+    private void PlantPreviewCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_hoveredPlantId != Guid.Empty)
+            ShowPlantPreview(_hoveredPlantId);
+    }
+
+    private void ShowPlantPreview(Guid plantId)
+    {
+        var plant = _plantList.FirstOrDefault(p => p.Id == plantId);
+        var area  = plant == null ? null
+                  : _areas.FirstOrDefault(a => a.PlantPlacements.Any(pp => pp.PlantId == plantId));
+
+        if (plant == null || area == null)
+        {
+            PlantPreviewPopup.IsOpen = false;
+            return;
+        }
+
+        PlantPreviewLabel.Text   = $"📍 {area.Name}";
+        PlantPreviewPopup.IsOpen = true;
+        GardenPreviewHelper.Draw(PlantPreviewCanvas, plant, area, _plantList);
     }
 
     // ── Task type toggle ──────────────────────────────────────────────────────

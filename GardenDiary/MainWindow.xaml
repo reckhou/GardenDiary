@@ -24,6 +24,10 @@
             <MenuItem Header="_Settings">
                 <MenuItem Header="Set _Home Location…"
                           Command="{Binding SetHomeLocationCommand}"/>
+                <Separator/>
+                <MenuItem Header="Change _Data Folder…"
+                          Command="{Binding ChangeDataFolderCommand}"
+                          ToolTip="{Binding DataFolderPath}"/>
             </MenuItem>
             <MenuItem Header="_Backup">
                 <MenuItem Header="Backup _Now"

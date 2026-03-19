@@ -12,8 +12,8 @@ namespace GardenDiary.ViewModels;
 
 public class MainViewModel : INotifyPropertyChanged
 {
-    private readonly DataService _dataService = new();
-    private readonly BackupService _backupService;
+    private DataService _dataService = new(DataService.LoadCustomDir());
+    private BackupService _backupService = null!;
     private readonly WeatherService _weatherService = new();
 
     private Plant? _selectedPlant;
@@ -357,6 +357,9 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteTaskCommand    { get; }
     public RelayCommand SkipTaskCommand      { get; }
     public RelayCommand ToggleCompletedCommand { get; }
+    public RelayCommand ChangeDataFolderCommand { get; }
+
+    public string DataFolderPath => _dataService.AppDataDir;
 
     public MainViewModel()
     {
@@ -390,7 +393,8 @@ public class MainViewModel : INotifyPropertyChanged
         EditTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) EditTask(t); });
         DeleteTaskCommand    = new RelayCommand(obj => { if (obj is GardenTask t) DeleteTask(t); });
         SkipTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) SkipTask(t); });
-        ToggleCompletedCommand = new RelayCommand(_ => ShowCompletedTasks = !ShowCompletedTasks);
+        ToggleCompletedCommand      = new RelayCommand(_ => ShowCompletedTasks = !ShowCompletedTasks);
+        ChangeDataFolderCommand     = new RelayCommand(_ => ChangeDataFolder());
 
         LoadPlants();
         LoadAreas();
@@ -1289,6 +1293,54 @@ public class MainViewModel : INotifyPropertyChanged
             StatusText = string.IsNullOrWhiteSpace(dialog.SelectedPath)
                 ? "Backup folder cleared."
                 : $"Backup folder set: {dialog.SelectedPath}";
+        }
+    }
+
+    private void ChangeDataFolder()
+    {
+        var dialog = new DataFolderDialog(_dataService.AppDataDir)
+            { Owner = System.Windows.Application.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+
+        var newDir = dialog.SelectedPath;
+        if (string.Equals(newDir, _dataService.AppDataDir, StringComparison.OrdinalIgnoreCase)) return;
+
+        try
+        {
+            Directory.CreateDirectory(newDir);
+
+            // Copy all data files and settings to the new location
+            var filesToCopy = new[]
+            {
+                _dataService.DataFilePath,
+                _dataService.AreasFilePath,
+                _dataService.TasksFilePath,
+                Path.Combine(_dataService.AppDataDir, "settings.json")
+            };
+            foreach (var src in filesToCopy)
+            {
+                if (File.Exists(src))
+                    File.Copy(src, Path.Combine(newDir, Path.GetFileName(src)!), overwrite: true);
+            }
+
+            // Update bootstrap (null = revert to default AppData dir)
+            var defaultDir = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GardenDiary");
+            DataService.SaveCustomDir(
+                string.Equals(newDir, defaultDir, StringComparison.OrdinalIgnoreCase) ? null : newDir);
+
+            // Reinitialize services to point at new location
+            _dataService   = new DataService(newDir);
+            _backupService = new BackupService(_dataService.AppDataDir, _dataService.DataFilePath, _dataService.AreasFilePath);
+
+            OnPropertyChanged(nameof(DataFolderPath));
+            StatusText = $"Data folder changed to: {newDir}";
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Failed to change data folder:\n{ex.Message}",
+                "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
         }
     }
 

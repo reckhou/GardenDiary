@@ -1,0 +1,41 @@
+<Window x:Class="GardenDiary.Views.DataFolderDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Data Folder" Height="200" Width="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Margin="0,0,0,12"
+                   Text="Garden Diary data files are stored in this folder. Choosing a new folder will copy all data there automatically."
+                   Foreground="#555" TextWrapping="Wrap"/>
+
+        <Label Grid.Row="1" Content="Data Folder:" Margin="0,0,0,4"/>
+
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox Grid.Column="0" x:Name="TxtPath" IsReadOnly="True"
+                     Padding="4,3" VerticalContentAlignment="Center"
+                     Background="#F8F8F8"/>
+            <Button Grid.Column="1" Content="Browse…" Width="72"
+                    Margin="6,0,0,0" Click="BrowseClick"/>
+        </Grid>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="OK" Width="80" Margin="0,0,8,0"
+                    Click="OkClick" IsDefault="True"/>
+            <Button Content="Cancel" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>

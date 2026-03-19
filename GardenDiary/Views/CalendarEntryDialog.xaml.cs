@@ -123,6 +123,18 @@ public partial class CalendarEntryDialog : Window
         }
     }
 
+    // ── Plant row hover → preview ─────────────────────────────────────────────
+
+    private void PlantItem_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (sender is FrameworkElement fe && fe.DataContext is PlantCheckItem ci)
+        {
+            _previewPlant   = ci.Plant;
+            _previewChecked = ci.IsChecked;
+            RefreshPreview();
+        }
+    }
+
     // ── Checkbox change → preview ─────────────────────────────────────────────
 
     private void OnCheckItemChanged(object? sender, PropertyChangedEventArgs e)

@@ -88,11 +88,15 @@
                                            FontWeight="SemiBold" FontSize="11"
                                            Foreground="#666" Background="#F5F5F5"
                                            Padding="6,3" Margin="0,0,0,2"/>
-                                <ItemsControl ItemsSource="{Binding Items}">
+                                <ItemsControl ItemsSource="{Binding Items}" HorizontalAlignment="Stretch">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
                                             <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                                                      Margin="10,2,4,2">
+                                                      Margin="10,2,4,2"
+                                                      HorizontalAlignment="Stretch"
+                                                      HorizontalContentAlignment="Stretch"
+                                                      Background="Transparent"
+                                                      MouseEnter="PlantItem_MouseEnter">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Plant.CommonName}"
                                                                FontWeight="SemiBold"/>
