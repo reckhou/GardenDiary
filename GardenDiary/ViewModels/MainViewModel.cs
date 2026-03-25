@@ -350,8 +350,9 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand DeleteShapeCommand { get; }
     public RelayCommand BringShapeToFrontCommand { get; }
     public RelayCommand SendShapeToBackCommand { get; }
-    public RelayCommand CalendarAddAreaEntryCommand  { get; }
-    public RelayCommand EditCalendarAreaEntryCommand { get; }
+    public RelayCommand CalendarAddAreaEntryCommand    { get; }
+    public RelayCommand EditCalendarAreaEntryCommand   { get; }
+    public RelayCommand DeleteCalendarAreaEntryCommand { get; }
     public RelayCommand AddTaskCommand       { get; }
     public RelayCommand EditTaskCommand      { get; }
     public RelayCommand DeleteTaskCommand    { get; }
@@ -387,8 +388,9 @@ public class MainViewModel : INotifyPropertyChanged
         DeleteShapeCommand      = new RelayCommand(_ => DeleteShape(),       _ => SelectedShape != null);
         BringShapeToFrontCommand = new RelayCommand(_ => BringShapeToFront(), _ => SelectedShape != null);
         SendShapeToBackCommand  = new RelayCommand(_ => SendShapeToBack(),   _ => SelectedShape != null);
-        CalendarAddAreaEntryCommand  = new RelayCommand(_ => CalendarAddAreaEntry(), _ => SelectedCalendarDate.HasValue);
-        EditCalendarAreaEntryCommand = new RelayCommand(obj => { if (obj is Guid id) EditSingleAreaDay(id); });
+        CalendarAddAreaEntryCommand    = new RelayCommand(_ => CalendarAddAreaEntry(), _ => SelectedCalendarDate.HasValue);
+        EditCalendarAreaEntryCommand   = new RelayCommand(obj => { if (obj is Guid id) EditSingleAreaDay(id); });
+        DeleteCalendarAreaEntryCommand = new RelayCommand(obj => { if (obj is Guid id) DeleteSingleAreaDay(id); });
         AddTaskCommand       = new RelayCommand(_ => AddTask());
         EditTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) EditTask(t); });
         DeleteTaskCommand    = new RelayCommand(obj => { if (obj is GardenTask t) DeleteTask(t); });
@@ -959,6 +961,23 @@ public class MainViewModel : INotifyPropertyChanged
             entry.Date = date;
             area.DiaryEntries.Add(entry);
         }
+        SaveAreas();
+        CheckTaskCompletion();
+        SaveTasksData();
+        RebuildTaskCards();
+        RebuildReminders();
+        LoadDayTasks();
+    }
+
+    private void DeleteSingleAreaDay(Guid areaId)
+    {
+        if (!_selectedCalendarDate.HasValue) return;
+        var date = _selectedCalendarDate.Value.Date;
+        var area = Areas.FirstOrDefault(a => a.Id == areaId);
+        if (area == null) return;
+        var existing = area.DiaryEntries.FirstOrDefault(e => e.Date.Date == date);
+        if (existing == null) return;
+        area.DiaryEntries.Remove(existing);
         SaveAreas();
         CheckTaskCompletion();
         SaveTasksData();

@@ -33,6 +33,7 @@ public partial class AreaCalendarEntryDialog : Window
         DtpDate.SelectedDate = date.Date;
         _items = areas.OrderBy(a => a.Name).Select(a => new AreaCheckItem(a, a.Id == editArea.Id)).ToList();
         AreaCheckList.ItemsSource = _items;
+        AreaCheckList.IsEnabled = false;
         if (existing != null)
         {
             ChkMowing.IsChecked      = existing.Mowing;

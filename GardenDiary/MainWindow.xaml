@@ -260,9 +260,14 @@
                                                             </TextBlock.Style>
                                                         </TextBlock>
                                                     </StackPanel>
-                                                    <Button Grid.Column="1" Content="Edit" Padding="6,2" VerticalAlignment="Center"
-                                                            Command="{Binding DataContext.EditCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                            CommandParameter="{Binding AreaId}"/>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Content="Edit" Padding="6,2" Margin="0,0,4,0"
+                                                                Command="{Binding DataContext.EditCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding AreaId}"/>
+                                                        <Button Content="Delete" Padding="6,2" Foreground="#C62828"
+                                                                Command="{Binding DataContext.DeleteCalendarAreaEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding AreaId}"/>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
