@@ -155,9 +155,9 @@
                                 </TextBlock>
 
                                 <!-- Weather data -->
-                                <WrapPanel>
-                                    <WrapPanel.Style>
-                                        <Style TargetType="WrapPanel">
+                                <StackPanel>
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding HasWeather}" Value="True">
@@ -165,19 +165,35 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </WrapPanel.Style>
-                                    <TextBlock Text="{Binding WeatherCondition}" FontWeight="SemiBold" Margin="0,0,14,0"/>
-                                    <TextBlock Text="Temp:" Foreground="#555" Margin="0,0,3,0"/>
-                                    <TextBlock Text="{Binding WeatherTempRange}" Margin="0,0,14,0"/>
-                                    <TextBlock Text="Wind:" Foreground="#555" Margin="0,0,3,0"/>
-                                    <TextBlock Text="{Binding WeatherWind}" Margin="0,0,14,0"/>
-                                    <TextBlock Text="Rain:" Foreground="#555" Margin="0,0,3,0"/>
-                                    <TextBlock Text="{Binding WeatherPrecipitation}" Margin="0,0,14,0"/>
-                                    <TextBlock Text="Sunrise:" Foreground="#555" Margin="0,0,3,0"/>
-                                    <TextBlock Text="{Binding WeatherSunrise}" Margin="0,0,14,0"/>
-                                    <TextBlock Text="Sunset:" Foreground="#555" Margin="0,0,3,0"/>
-                                    <TextBlock Text="{Binding WeatherSunset}"/>
-                                </WrapPanel>
+                                    </StackPanel.Style>
+                                    <!-- Row 1: condition, temp, wind, rain -->
+                                    <WrapPanel Margin="0,0,0,4">
+                                        <emoji:TextBlock Text="{Binding WeatherConditionEmoji}" FontSize="16" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherCondition}" FontSize="13" FontWeight="SemiBold" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="🌡️ Temp:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherTempRange}" FontSize="13" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="💨 Wind:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherWind}" FontSize="13" Margin="0,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="(gust" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherWindGust}" FontSize="13" Margin="0,0,2,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text=")" FontSize="13" Foreground="#555" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="🌧️ Rain:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherPrecipitation}" FontSize="13" VerticalAlignment="Center"/>
+                                    </WrapPanel>
+                                    <!-- Row 2: cloud, sunshine, solar, sunrise, sunset -->
+                                    <WrapPanel>
+                                        <TextBlock Text="☁️ Cloud:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherCloudCover}" FontSize="13" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="☀️ Sun:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherSunshineHours}" FontSize="13" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="⚡ Solar:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherRadiation}" FontSize="13" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="🌅 Sunrise:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherSunrise}" FontSize="13" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="🌇 Sunset:" FontSize="13" Foreground="#555" Margin="0,0,3,0" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding WeatherSunset}" FontSize="13" VerticalAlignment="Center"/>
+                                    </WrapPanel>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
@@ -283,13 +299,21 @@
                                                     Padding="0,0,0,10">
                                                 <StackPanel>
 
-                                                    <!-- Activity badge + Edit button -->
+                                                    <!-- Activity badge (chevron toggle) + Edit button -->
                                                     <Grid Margin="0,0,0,8">
                                                         <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <Border Grid.Column="0"
+                                                        <Button Grid.Column="0"
+                                                                Content="{Binding ChevronText}"
+                                                                Click="ActivityGroupToggle_Click"
+                                                                FontSize="10" Padding="4,2" Margin="0,0,4,0"
+                                                                VerticalAlignment="Center"
+                                                                Background="Transparent" BorderThickness="0"
+                                                                Cursor="Hand"/>
+                                                        <Border Grid.Column="1"
                                                                 Background="{Binding BadgeBackground, Converter={StaticResource StringToBrush}}"
                                                                 CornerRadius="4" Padding="8,3"
                                                                 HorizontalAlignment="Left">
@@ -297,7 +321,7 @@
                                                                        FontWeight="Bold" FontSize="13"
                                                                        Foreground="{Binding BadgeForeground, Converter={StaticResource StringToBrush}}"/>
                                                         </Border>
-                                                        <Button Grid.Column="1" Content="Edit"
+                                                        <Button Grid.Column="2" Content="Edit"
                                                                 Padding="6,2" VerticalAlignment="Center"
                                                                 Command="{Binding DataContext.EditCalendarEntryCommand,
                                                                           RelativeSource={RelativeSource AncestorType=Window}}"
@@ -305,7 +329,8 @@
                                                     </Grid>
 
                                                     <!-- Plant list with location, latin name, notes -->
-                                                    <ItemsControl ItemsSource="{Binding Plants}">
+                                                    <ItemsControl ItemsSource="{Binding Plants}"
+                                                                  Visibility="{Binding IsExpanded, Converter={StaticResource BoolToVis}}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>
                                                                 <StackPanel Margin="10,3,0,6"

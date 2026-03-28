@@ -25,24 +25,32 @@ public class WeatherService
             var url = $"{baseUrl}?latitude={lat.ToString(CultureInfo.InvariantCulture)}" +
                       $"&longitude={lon.ToString(CultureInfo.InvariantCulture)}" +
                       "&daily=sunrise,sunset,precipitation_sum,wind_speed_10m_max," +
-                      "wind_direction_10m_dominant,weather_code,temperature_2m_max,temperature_2m_min" +
+                      "wind_gusts_10m_max,wind_direction_10m_dominant,weather_code," +
+                      "temperature_2m_max,temperature_2m_min," +
+                      "cloud_cover_mean,sunshine_duration,shortwave_radiation_sum" +
                       $"&timezone=auto&start_date={dateStr}&end_date={dateStr}";
 
             var json = await _http.GetStringAsync(url);
             using var doc = JsonDocument.Parse(json);
             var daily = doc.RootElement.GetProperty("daily");
 
+            var wmoCode = (int)GetFirstDouble(daily, "weather_code");
             return new DayWeather
             {
-                IsAvailable   = true,
-                TempMax       = GetFirstDouble(daily, "temperature_2m_max"),
-                TempMin       = GetFirstDouble(daily, "temperature_2m_min"),
-                WindSpeed     = GetFirstDouble(daily, "wind_speed_10m_max"),
-                WindDirection = (int)GetFirstDouble(daily, "wind_direction_10m_dominant"),
-                Precipitation = GetFirstDouble(daily, "precipitation_sum"),
-                Condition     = WmoToDescription((int)GetFirstDouble(daily, "weather_code")),
-                Sunrise       = ParseTimeOnly(GetFirstString(daily, "sunrise")),
-                Sunset        = ParseTimeOnly(GetFirstString(daily, "sunset")),
+                IsAvailable        = true,
+                WmoCode            = wmoCode,
+                TempMax            = GetFirstDouble(daily, "temperature_2m_max"),
+                TempMin            = GetFirstDouble(daily, "temperature_2m_min"),
+                WindSpeed          = GetFirstDouble(daily, "wind_speed_10m_max"),
+                WindGust           = GetFirstDouble(daily, "wind_gusts_10m_max"),
+                WindDirection      = (int)GetFirstDouble(daily, "wind_direction_10m_dominant"),
+                Precipitation      = GetFirstDouble(daily, "precipitation_sum"),
+                CloudCover         = GetFirstDouble(daily, "cloud_cover_mean"),
+                SunshineHours      = GetFirstDouble(daily, "sunshine_duration") / 3600.0,
+                ShortwaveRadiation = GetFirstDouble(daily, "shortwave_radiation_sum"),
+                Condition          = WmoToDescription(wmoCode),
+                Sunrise            = ParseTimeOnly(GetFirstString(daily, "sunrise")),
+                Sunset             = ParseTimeOnly(GetFirstString(daily, "sunset")),
             };
         }
         catch (Exception ex)
@@ -79,6 +87,26 @@ public class WeatherService
         string[] dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
         return dirs[(int)((degrees + 22.5) / 45) % 8];
     }
+
+    public static string WmoToEmoji(int code) => code switch
+    {
+        0            => "☀️",
+        1            => "🌤️",
+        2            => "⛅",
+        3            => "☁️",
+        45 or 48     => "🌫️",
+        51 or 53 or 55 => "🌦️",
+        56 or 57     => "🌨️",
+        61 or 63 or 65 => "🌧️",
+        66 or 67     => "🌨️",
+        71 or 73 or 75 => "❄️",
+        77           => "🌨️",
+        80 or 81 or 82 => "🌧️",
+        85 or 86     => "🌨️",
+        95           => "⛈️",
+        96 or 99     => "⛈️",
+        _            => "🌡️"
+    };
 
     private static string WmoToDescription(int code) => code switch
     {

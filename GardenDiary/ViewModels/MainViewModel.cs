@@ -166,10 +166,15 @@ public class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(ShowWeatherNoLocation));
             OnPropertyChanged(nameof(ShowWeatherLoading));
             OnPropertyChanged(nameof(ShowWeatherError));
+            OnPropertyChanged(nameof(WeatherConditionEmoji));
             OnPropertyChanged(nameof(WeatherCondition));
             OnPropertyChanged(nameof(WeatherTempRange));
             OnPropertyChanged(nameof(WeatherWind));
+            OnPropertyChanged(nameof(WeatherWindGust));
             OnPropertyChanged(nameof(WeatherPrecipitation));
+            OnPropertyChanged(nameof(WeatherCloudCover));
+            OnPropertyChanged(nameof(WeatherSunshineHours));
+            OnPropertyChanged(nameof(WeatherRadiation));
             OnPropertyChanged(nameof(WeatherSunrise));
             OnPropertyChanged(nameof(WeatherSunset));
             OnPropertyChanged(nameof(WeatherErrorText));
@@ -198,14 +203,29 @@ public class MainViewModel : INotifyPropertyChanged
                                          && _selectedCalendarDate.HasValue;
 
     // Formatted weather strings
-    public string WeatherCondition    => HasWeather ? _dayWeather!.Condition : "";
-    public string WeatherTempRange    => HasWeather ? $"{_dayWeather!.TempMin:F0}–{_dayWeather.TempMax:F0}°C" : "";
-    public string WeatherWind         => HasWeather
+    public string WeatherConditionEmoji => HasWeather ? WeatherService.WmoToEmoji(_dayWeather!.WmoCode) : "";
+    public string WeatherCondition     => HasWeather ? _dayWeather!.Condition : "";
+    public string WeatherTempRange     => HasWeather ? $"{_dayWeather!.TempMin:F0}–{_dayWeather.TempMax:F0}°C" : "";
+    public string WeatherWind          => HasWeather
         ? $"{_dayWeather!.WindSpeed:F0} km/h {WeatherService.DegreesToCompass(_dayWeather.WindDirection)}" : "";
+    public string WeatherWindGust      => HasWeather ? $"{_dayWeather!.WindGust:F0} km/h" : "";
     public string WeatherPrecipitation => HasWeather ? $"{_dayWeather!.Precipitation:F1} mm" : "";
-    public string WeatherSunrise      => HasWeather ? _dayWeather!.Sunrise.ToString("HH:mm") : "";
-    public string WeatherSunset       => HasWeather ? _dayWeather!.Sunset.ToString("HH:mm") : "";
-    public string WeatherErrorText    => ShowWeatherError ? (_dayWeather?.Error ?? "Weather data unavailable.") : "";
+    public string WeatherCloudCover    => HasWeather ? $"{_dayWeather!.CloudCover:F0}%" : "";
+    public string WeatherSunshineHours => HasWeather ? $"{_dayWeather!.SunshineHours:F1} hrs" : "";
+    public string WeatherRadiation     => HasWeather
+        ? $"{SolarStrengthLabel(_dayWeather!.ShortwaveRadiation)} • {_dayWeather.ShortwaveRadiation:F1} MJ/m²" : "";
+
+    private static string SolarStrengthLabel(double mjm2) => mjm2 switch
+    {
+        < 4  => "Very Dim",
+        < 10 => "Dim",
+        < 17 => "Moderate",
+        < 22 => "Good",
+        _    => "Strong"
+    };
+    public string WeatherSunrise       => HasWeather ? _dayWeather!.Sunrise.ToString("HH:mm") : "";
+    public string WeatherSunset        => HasWeather ? _dayWeather!.Sunset.ToString("HH:mm") : "";
+    public string WeatherErrorText     => ShowWeatherError ? (_dayWeather?.Error ?? "Weather data unavailable.") : "";
 
     // ── Garden Planner ────────────────────────────────────────────────────────
 
@@ -624,6 +644,7 @@ public class MainViewModel : INotifyPropertyChanged
                         LocationAreaName = areaName
                     };
                 })
+                .OrderBy(p => p.Name)
                 .ToList();
 
             if (plants.Count > 0)

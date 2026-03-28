@@ -100,6 +100,14 @@ public partial class MainWindow : Window
         GardenPreviewHelper.Draw(PlantLocationCanvas, plant, area, vm!.Plants);
     }
 
+    // ── Calendar activity group toggle ───────────────────────────────────────
+
+    private void ActivityGroupToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button btn && btn.DataContext is GardenDiary.Models.DayTaskGroup group)
+            group.IsExpanded = !group.IsExpanded;
+    }
+
     // ── Calendar hover preview ────────────────────────────────────────────────
 
     private Guid _hoveredPlantId;
