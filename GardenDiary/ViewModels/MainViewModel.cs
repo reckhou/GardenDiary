@@ -37,11 +37,14 @@ public class MainViewModel : INotifyPropertyChanged
     public ObservableCollection<DiaryEntry> Entries { get; } = new();
     public ObservableCollection<DayTaskGroup> DayTasks { get; } = new();
     public ObservableCollection<AreaSummary> DayAreaTasks { get; } = new();
+    public ObservableCollection<GeneralEntrySummary> DayGeneralEntries { get; } = new();
     public ObservableCollection<GardenArea> Areas { get; } = new();
     public ObservableCollection<PlantOption> PlantOptions { get; } = new();
     public IEnumerable<PlantOption> UnplacedPlantOptions => PlantOptions.Where(o => o.IsAvailable);
     public HashSet<DateTime> DaysWithActivities { get; } = new();
     public ObservableCollection<PlantFilterItem> PlantFilterItems { get; } = new();
+
+    private List<GeneralDiaryEntry> _generalEntries = new();
 
     public ObservableCollection<GardenTask>            Tasks               { get; } = new();
     public ObservableCollection<TaskCardViewModel>     TaskCards           { get; } = new();
@@ -140,9 +143,10 @@ public class MainViewModel : INotifyPropertyChanged
         ? _selectedCalendarDate.Value.ToString("dddd, MMMM d, yyyy")
         : "Select a day on the calendar";
 
-    public bool NoDayTasks    => DayTasks.Count == 0;
-    public bool NoDayAreaTasks => DayAreaTasks.Count == 0;
-    public bool NoDayContent  => DayTasks.Count == 0 && DayAreaTasks.Count == 0;
+    public bool NoDayTasks         => DayTasks.Count == 0;
+    public bool NoDayAreaTasks     => DayAreaTasks.Count == 0;
+    public bool NoDayGeneralEntries => DayGeneralEntries.Count == 0;
+    public bool NoDayContent       => DayTasks.Count == 0 && DayAreaTasks.Count == 0 && DayGeneralEntries.Count == 0;
 
     public bool ShowCompletedTasks
     {
@@ -379,6 +383,8 @@ public class MainViewModel : INotifyPropertyChanged
     public RelayCommand SkipTaskCommand      { get; }
     public RelayCommand ToggleCompletedCommand { get; }
     public RelayCommand ChangeDataFolderCommand { get; }
+    public RelayCommand EditCalendarGeneralEntryCommand   { get; }
+    public RelayCommand DeleteCalendarGeneralEntryCommand { get; }
 
     public string DataFolderPath => _dataService.AppDataDir;
 
@@ -415,12 +421,15 @@ public class MainViewModel : INotifyPropertyChanged
         EditTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) EditTask(t); });
         DeleteTaskCommand    = new RelayCommand(obj => { if (obj is GardenTask t) DeleteTask(t); });
         SkipTaskCommand      = new RelayCommand(obj => { if (obj is GardenTask t) SkipTask(t); });
-        ToggleCompletedCommand      = new RelayCommand(_ => ShowCompletedTasks = !ShowCompletedTasks);
-        ChangeDataFolderCommand     = new RelayCommand(_ => ChangeDataFolder());
+        ToggleCompletedCommand              = new RelayCommand(_ => ShowCompletedTasks = !ShowCompletedTasks);
+        ChangeDataFolderCommand             = new RelayCommand(_ => ChangeDataFolder());
+        EditCalendarGeneralEntryCommand     = new RelayCommand(obj => { if (obj is Guid id) EditGeneralEntry(id); });
+        DeleteCalendarGeneralEntryCommand   = new RelayCommand(obj => { if (obj is Guid id) DeleteGeneralEntry(id); });
 
         LoadPlants();
         LoadAreas();
         LoadTasksData();
+        _generalEntries = _dataService.LoadGeneralEntries();
         RebuildReminders();
     }
 
@@ -598,6 +607,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         DayTasks.Clear();
         DayAreaTasks.Clear();
+        DayGeneralEntries.Clear();
         if (!_selectedCalendarDate.HasValue) return;
 
         var date = _selectedCalendarDate.Value.Date;
@@ -657,8 +667,25 @@ public class MainViewModel : INotifyPropertyChanged
                 });
         }
 
+        // General entries for this day (resolve plant names for display)
+        var plantById = Plants.ToDictionary(p => p.Id, p => p.CommonName);
+        foreach (var ge in _generalEntries.Where(e => e.Date.Date == date))
+        {
+            var plantNames = ge.PlantIds
+                .Select(id => plantById.TryGetValue(id, out var n) ? n : null)
+                .Where(n => n != null)
+                .ToList();
+            DayGeneralEntries.Add(new GeneralEntrySummary
+            {
+                Id           = ge.Id,
+                Notes        = ge.Notes,
+                PlantSummary = plantNames.Count > 0 ? string.Join(", ", plantNames) : ""
+            });
+        }
+
         OnPropertyChanged(nameof(NoDayTasks));
         OnPropertyChanged(nameof(NoDayAreaTasks));
+        OnPropertyChanged(nameof(NoDayGeneralEntries));
         OnPropertyChanged(nameof(NoDayContent));
         RebuildDaysWithActivities();
     }
@@ -676,6 +703,9 @@ public class MainViewModel : INotifyPropertyChanged
             foreach (var entry in area.DiaryEntries)
                 if (entry.Mowing || entry.Watering || entry.Overseeding || entry.Feeding || entry.Aerating)
                     newDays.Add(entry.Date.Date);
+
+        foreach (var entry in _generalEntries)
+            newDays.Add(entry.Date.Date);
 
         if (newDays.SetEquals(DaysWithActivities)) return;
 
@@ -847,7 +877,50 @@ public class MainViewModel : INotifyPropertyChanged
         var dialog = new CalendarEntryDialog(_selectedCalendarDate.Value, Plants, Areas)
             { Owner = App.Current.MainWindow };
         if (dialog.ShowDialog() != true) return;
+
+        if (dialog.IsGeneralActivity)
+        {
+            var entry = new GeneralDiaryEntry
+            {
+                Date     = dialog.Entry.Date,
+                Notes    = dialog.Entry.Notes,
+                PlantIds = dialog.SelectedPlants.Select(p => p.Id).ToList()
+            };
+            _generalEntries.Add(entry);
+            _dataService.SaveGeneralEntries(_generalEntries);
+            LoadDayTasks();
+            RebuildDaysWithActivities();
+            return;
+        }
+
         SaveCalendarEntry(dialog.SelectedPlants, dialog.Entry);
+    }
+
+    private void EditGeneralEntry(Guid id)
+    {
+        var entry = _generalEntries.FirstOrDefault(e => e.Id == id);
+        if (entry == null) return;
+        var dialog = new GeneralActivityDialog(entry, Plants, Areas) { Owner = App.Current.MainWindow };
+        if (dialog.ShowDialog() != true) return;
+        var idx = _generalEntries.IndexOf(entry);
+        _generalEntries[idx] = dialog.Entry;
+        _dataService.SaveGeneralEntries(_generalEntries);
+        LoadDayTasks();
+        RebuildDaysWithActivities();
+    }
+
+    private void DeleteGeneralEntry(Guid id)
+    {
+        var entry = _generalEntries.FirstOrDefault(e => e.Id == id);
+        if (entry == null) return;
+        var result = System.Windows.MessageBox.Show(
+            "Delete this general activity entry?",
+            "Confirm Delete", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Warning);
+        if (result != System.Windows.MessageBoxResult.Yes) return;
+        _generalEntries.Remove(entry);
+        _dataService.SaveGeneralEntries(_generalEntries);
+        LoadDayTasks();
+        RebuildDaysWithActivities();
     }
 
     private void EditActivityEntry(string activityName)

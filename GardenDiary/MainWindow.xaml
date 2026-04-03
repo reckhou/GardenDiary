@@ -290,6 +290,74 @@
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
 
+                                <!-- General activity entries -->
+                                <TextBlock Text="📝 General Activities" FontWeight="SemiBold" FontSize="12"
+                                           Foreground="#555" Margin="0,0,0,4">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding NoDayGeneralEntries}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <ItemsControl ItemsSource="{Binding DayGeneralEntries}" Margin="0,0,0,8">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="0,0,0,6" BorderBrush="#E0E0E0" BorderThickness="0,0,0,1" Padding="0,0,0,6">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock FontSize="13">
+                                                            <Run Text="📝  "/>
+                                                            <Run Text="General Activity" FontWeight="SemiBold" Foreground="#555"/>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding PlantSummary}" FontSize="11"
+                                                                   Foreground="#4CAF50" Margin="22,1,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding PlantSummary}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Notes}" FontStyle="Italic" Foreground="#666"
+                                                                   FontSize="11" TextWrapping="Wrap" Margin="22,2,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Notes}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Button Content="Edit" Padding="6,2" Margin="0,0,4,0"
+                                                                Command="{Binding DataContext.EditCalendarGeneralEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Id}"/>
+                                                        <Button Content="Delete" Padding="6,2" Foreground="#C62828"
+                                                                Command="{Binding DataContext.DeleteCalendarGeneralEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                CommandParameter="{Binding Id}"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
                                 <!-- Plant activity groups -->
                                 <ItemsControl ItemsSource="{Binding DayTasks}">
                                     <ItemsControl.ItemTemplate>

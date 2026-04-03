@@ -10,6 +10,7 @@ public class DataService
     public string DataFilePath { get; }
     public string AreasFilePath { get; }
     public string TasksFilePath { get; }
+    public string GeneralEntriesFilePath { get; }
 
     private static readonly JsonSerializerOptions _options = new() { WriteIndented = true };
 
@@ -53,9 +54,10 @@ public class DataService
         AppDataDir = customDir
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "GardenDiary");
         Directory.CreateDirectory(AppDataDir);
-        DataFilePath  = Path.Combine(AppDataDir, "data.json");
-        AreasFilePath = Path.Combine(AppDataDir, "areas.json");
-        TasksFilePath = Path.Combine(AppDataDir, "tasks.json");
+        DataFilePath          = Path.Combine(AppDataDir, "data.json");
+        AreasFilePath         = Path.Combine(AppDataDir, "areas.json");
+        TasksFilePath         = Path.Combine(AppDataDir, "tasks.json");
+        GeneralEntriesFilePath = Path.Combine(AppDataDir, "generalEntries.json");
     }
 
     public List<Plant> LoadPlants()
@@ -101,5 +103,20 @@ public class DataService
     {
         var json = JsonSerializer.Serialize(tasks.ToList(), _options);
         File.WriteAllText(TasksFilePath, json);
+    }
+
+    public List<GeneralDiaryEntry> LoadGeneralEntries()
+    {
+        if (!File.Exists(GeneralEntriesFilePath)) return new List<GeneralDiaryEntry>();
+        var json = File.ReadAllText(GeneralEntriesFilePath);
+        try { return JsonSerializer.Deserialize<List<GeneralDiaryEntry>>(json, _options) ?? new List<GeneralDiaryEntry>(); }
+        catch (JsonException ex)
+            { throw new InvalidDataException($"General entries data file is corrupted: {ex.Message}", ex); }
+    }
+
+    public void SaveGeneralEntries(IEnumerable<GeneralDiaryEntry> entries)
+    {
+        var json = JsonSerializer.Serialize(entries.ToList(), _options);
+        File.WriteAllText(GeneralEntriesFilePath, json);
     }
 }

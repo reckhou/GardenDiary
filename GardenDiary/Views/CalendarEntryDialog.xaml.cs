@@ -70,6 +70,7 @@ public partial class CalendarEntryDialog : Window
 
     public List<Plant> SelectedPlants { get; private set; } = new();
     public DiaryEntry Entry { get; private set; } = new();
+    public bool IsGeneralActivity { get; private set; }
 
     public CalendarEntryDialog(DateTime date, IList<Plant> plants, IList<GardenArea> areas, Plant? preselect = null)
     {
@@ -171,6 +172,27 @@ public partial class CalendarEntryDialog : Window
         GardenPreviewHelper.Draw(PreviewCanvas, _previewPlant, area, _plantList, _previewChecked);
     }
 
+    // ── General activity toggle ───────────────────────────────────────────────
+
+    private void ChkGeneral_Changed(object sender, RoutedEventArgs e)
+    {
+        bool isGeneral = ChkGeneral.IsChecked == true;
+
+        // Disable and uncheck the other activity checkboxes (plant selection remains available)
+        if (isGeneral)
+        {
+            ChkWatering.IsChecked    = false;
+            ChkFertilizing.IsChecked = false;
+            ChkPruning.IsChecked     = false;
+            ChkPlanting.IsChecked    = false;
+        }
+
+        ChkWatering.IsEnabled    = !isGeneral;
+        ChkFertilizing.IsEnabled = !isGeneral;
+        ChkPruning.IsEnabled     = !isGeneral;
+        ChkPlanting.IsEnabled    = !isGeneral;
+    }
+
     // ── Search / filter ───────────────────────────────────────────────────────
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
@@ -231,6 +253,20 @@ public partial class CalendarEntryDialog : Window
         {
             MessageBox.Show("Please select a date.", "Validation",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        // General activity: plants are optional
+        if (ChkGeneral.IsChecked == true)
+        {
+            IsGeneralActivity = true;
+            SelectedPlants    = _allItems.Where(ci => ci.IsChecked).Select(ci => ci.Plant).ToList();
+            Entry = new DiaryEntry
+            {
+                Date  = DtpDate.SelectedDate.Value.Date,
+                Notes = TxtNotes.Text.Trim()
+            };
+            DialogResult = true;
             return;
         }
 
